@@ -1,0 +1,7 @@
+numpy>=2.0
+pandas>=2.0
+torch>=2.0
+pyro-ppl>=1.9
+neat-python>=0.92
+matplotlib>=3.7
+Pillow>=10.0

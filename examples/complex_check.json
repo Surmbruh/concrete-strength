@@ -1,0 +1,16 @@
+{
+  "model": {
+    "input_dim": 10,
+    "hidden_dims": [128, 64, 32]
+  },
+  "evaluation": {
+    "mc_samples": 50,
+    "confidence_level": 0.95
+  },
+  "checks": {
+    "gost_compliance": true,
+    "monotonicity": true,
+    "abrams_law": true
+  },
+  "per_time_breakdown": true
+}

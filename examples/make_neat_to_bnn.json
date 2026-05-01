@@ -1,0 +1,15 @@
+{
+  "candidate_index": 1,
+  "data_path": "../data/synthetic_training_data.csv",
+  "components": ["cement",
+    "sand",
+    "gravel",
+    "water"
+    ],
+  "properties": ["strength_28"],
+  "learning_rate": 0.01,
+  "epochs": 30,
+  "prior_std": 0.5,
+  "posterior_scale_init": 0.05,
+  "kl_weight": 0.02
+}

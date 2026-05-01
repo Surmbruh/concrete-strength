@@ -1,0 +1,20 @@
+{
+  "generation_count": 1,
+  "best_fitness": 0.8082135377362066,
+  "best_fitness_history": [
+    0.8082135377362066
+  ],
+  "mean_fitness_history": [
+    0.7998409171056338
+  ],
+  "median_fitness_history": [
+    0.7993239622484729
+  ],
+  "stdev_fitness_history": [
+    0.0039232113089994695
+  ],
+  "files": {
+    "fitness_history": "artifacts\\debug_topo\\discriminator_neat\\fitness_history.csv",
+    "summary": "artifacts\\debug_topo\\discriminator_neat\\neat_statistics.json"
+  }
+}

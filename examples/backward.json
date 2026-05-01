@@ -1,0 +1,26 @@
+{
+  "backward_input": {
+    "data_path": "../data/synthetic_training_data.csv",
+    "components": [
+      "cement",
+      "sand",
+      "gravel",
+      "water"
+    ],
+    "properties": [
+      "strength_28"
+    ]
+  },
+  "property_weights": {
+    "strength_28": 1.0
+  },
+  "optimizer": {
+    "limit_generations": 5,
+    "mc_samples": 36,
+    "visualization_samples": 32,
+    "visualization_input_sigma": 0.08,
+    "uncertainty_weight": 0.25,
+    "seed": 4
+  },
+  "top_k": 2
+}

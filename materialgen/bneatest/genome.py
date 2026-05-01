@@ -1,0 +1,230 @@
+from typing import List, Tuple, Union
+import math
+import os
+
+import numpy as np
+
+from .connection import Connection, GeneRate
+from .weight import BayesianWeight
+from .node import Node, NodeType, group_nodes
+from .version import VERSION
+
+import cloudpickle  # type: ignore
+try:
+    disable_mpi = os.environ.get('BNEATEST_DISABLE_MPI')
+    if disable_mpi and disable_mpi != '0':
+        raise ImportError
+    from mpi4py import MPI  # type: ignore
+except ImportError:
+    from .MPI import MPI
+    MPI = MPI()
+
+
+class Genome(object):
+    def __init__(self, nodes: List[Node], connections: List[Connection]):
+        self.connections = connections
+        self.nodes = nodes
+        self.version = VERSION
+
+        grouped_nodes = group_nodes(self.nodes, 'type')
+        self.input_size = len(grouped_nodes[0])
+        self.output_size = len(grouped_nodes[-1])
+        self.outputs = grouped_nodes[-1]
+
+    def __call__(self, inputs: List[float],
+                 n_samples: int = 1) -> Union[List[float], List[List[float]]]:
+        """Stochastic forward pass. Samples weights from their distributions.
+
+        Args:
+            inputs: Input values.
+            n_samples: Number of forward pass samples. If 1, returns a flat list.
+                       If > 1, returns a list of lists.
+        """
+        results = []
+        for _ in range(n_samples):
+            self.nodes.sort(key=lambda x: x.depth)
+            for node in self.nodes:
+                value = 0.0
+                if node.type == NodeType.INPUT:
+                    value += inputs[node.id]
+                elif node.type == NodeType.BIAS:
+                    continue
+                for connection in node.inputs:
+                    if connection.enabled:
+                        w = connection.weight.sample().item()
+                        value += connection.in_node.value * w
+                node.value = node.activation(value)
+            results.append([node.value for node in self.outputs])
+
+        if n_samples == 1:
+            return results[0]
+        return results
+
+    def forward_deterministic(self, inputs: List[float]) -> List[float]:
+        """Deterministic forward pass using mean weights (mu)."""
+        self.nodes.sort(key=lambda x: x.depth)
+        for node in self.nodes:
+            value = 0.0
+            if node.type == NodeType.INPUT:
+                value += inputs[node.id]
+            elif node.type == NodeType.BIAS:
+                continue
+            for connection in node.inputs:
+                if connection.enabled:
+                    value += connection.in_node.value * connection.weight.mu.item()
+            node.value = node.activation(value)
+        return [node.value for node in self.outputs]
+
+    def predict_with_uncertainty(self, inputs: List[float],
+                                 n_samples: int = 30) -> Tuple[List[float], List[float]]:
+        """Returns (mean, std) for each output over n_samples forward passes."""
+        samples = self(inputs, n_samples=n_samples)
+        arr = np.array(samples)
+        return arr.mean(axis=0).tolist(), arr.std(axis=0).tolist()
+
+    def copy(self):
+        """Shallow copy: new nodes/connections but shared BayesianWeight objects."""
+        connections: List[Connection] = []
+        nodes: List[Node] = []
+        for idx in range(len(self.connections)):
+            connection = self.connections[idx]
+            in_node = Node(connection.in_node.id, connection.in_node.type,
+                           connection.in_node.activation,
+                           depth=connection.in_node.depth)
+            out_node = Node(connection.out_node.id, connection.out_node.type,
+                            connection.out_node.activation,
+                            depth=connection.out_node.depth)
+            nodes_dict = dict(zip(nodes, range(len(nodes))))
+            if in_node not in nodes_dict:
+                nodes.append(in_node)
+                nodes_dict[in_node] = len(nodes)-1
+            if out_node not in nodes_dict:
+                nodes.append(out_node)
+                nodes_dict[out_node] = len(nodes)-1
+
+            new_connection = Connection(nodes[nodes_dict[in_node]],
+                                        nodes[nodes_dict[out_node]],
+                                        innovation=connection.innovation,
+                                        dominant_gene_rate=connection.dominant_gene_rate,
+                                        weight=connection.weight)
+            new_connection.enabled = connection.enabled
+            connections.append(new_connection)
+        new_genome = Genome(nodes, connections)
+        return new_genome
+
+    def deepcopy(self):
+        """Deep copy: new nodes, connections, and independent BayesianWeight objects."""
+        connections: List[Connection] = []
+        nodes: List[Node] = []
+        for idx in range(len(self.connections)):
+            connection = self.connections[idx]
+            in_node = Node(connection.in_node.id, connection.in_node.type,
+                           connection.in_node.activation,
+                           depth=connection.in_node.depth)
+            out_node = Node(connection.out_node.id, connection.out_node.type,
+                            connection.out_node.activation,
+                            depth=connection.out_node.depth)
+            nodes_dict = dict(zip(nodes, range(len(nodes))))
+            if in_node not in nodes_dict:
+                nodes.append(in_node)
+                nodes_dict[in_node] = len(nodes)-1
+            if out_node not in nodes_dict:
+                nodes.append(out_node)
+                nodes_dict[out_node] = len(nodes)-1
+            new_connection = Connection(nodes[nodes_dict[in_node]],
+                                        nodes[nodes_dict[out_node]],
+                                        innovation=connection.innovation,
+                                        dominant_gene_rate=GeneRate(
+                                            connection.dominant_gene_rate.value),
+                                        weight=connection.weight.deepcopy())
+            new_connection.enabled = connection.enabled
+            connections.append(new_connection)
+        new_genome = Genome(nodes, connections)
+        return new_genome
+
+    def draw(self, node_radius: float = 0.05,
+             vertical_distance: float = 0.25,
+             horizontal_distance: float = 0.25,
+             show_weights: bool = True,
+             **kwargs) -> None:
+        """Draw the network topology with Bayesian weight info.
+
+        Uses the enhanced visualization from bneatest.visualization.
+        """
+        from .visualization import draw_genome as draw_genome_viz
+        draw_genome_viz(self, node_radius=node_radius,
+                        vertical_distance=vertical_distance,
+                        horizontal_distance=horizontal_distance,
+                        show_weights=show_weights, **kwargs)
+
+    def save(self, filename: str) -> None:
+        if MPI.COMM_WORLD.rank == 0:
+            with open(filename, 'wb') as output:
+                cloudpickle.dump(self, output)
+
+    @classmethod
+    def load(cls, filename: str) -> 'Genome':
+        print(f"\033[33;1mLoading: {filename}\033[0m")
+        with open(filename, 'rb') as f:
+            genome = cloudpickle.load(f)
+        if genome.version != VERSION:
+            print("\033[31;1mWarning: Genome version mismatch!\n"
+                  f"Current Version: {VERSION.major}.{VERSION.minor}.{VERSION.patch}\n"
+                  "Checkpoint Version:"
+                  f" {genome.version.major}.{genome.version.minor}."
+                  f"{genome.version.patch}\033[0m")
+        return genome
+
+    def __str__(self):
+        string = ''
+        string = f'{string}NODES:\n'
+        for node in self.nodes:
+            string = f'{string}{node}\n'
+        string = f'{string}\n\nCONNECTIONS:\n'
+        for connection in self.connections:
+            string = f'{string}{connection}\n'
+        return string
+
+
+def draw_genome(genome: Genome,
+                node_radius: float = 0.05,
+                vertical_distance: float = 0.25,
+                horizontal_distance: float = 0.25) -> None:
+    '''Draw the genome to a matplotlib figure but do not show it.'''
+    import matplotlib.pyplot as plt  # type: ignore
+    import matplotlib.patches as patches  # type: ignore
+    plt.gcf().canvas.set_window_title('float')
+
+    positions = {}
+    node_groups = group_nodes(genome.nodes, 'depth')
+    for group_idx, nodes in enumerate(node_groups):
+        y_position = -vertical_distance * (len(nodes)-1)/2
+        for i, node in enumerate(nodes):
+            positions[f'{node.id}'] = (group_idx * horizontal_distance,
+                                       y_position + i*vertical_distance)
+            circle = plt.Circle(positions[f'{node.id}'],
+                                node_radius, color='r', fill=False)
+            plt.gcf().gca().text(*positions[f'{node.id}'], node.id,
+                                 horizontalalignment='center',
+                                 verticalalignment='center',
+                                 fontsize=10.0)
+            plt.gcf().gca().add_artist(circle)
+
+    for connection in genome.connections:
+        if connection.enabled:
+            node1_x = positions[f'{connection.in_node.id}'][0]
+            node2_x = positions[f'{connection.out_node.id}'][0]
+            node1_y = positions[f'{connection.in_node.id}'][1]
+            node2_y = positions[f'{connection.out_node.id}'][1]
+            angle = math.atan2(node2_x - node1_x, node2_y - node1_y)
+            x_adjustment = node_radius * math.sin(angle)
+            y_adjustment = node_radius * math.cos(angle)
+            arrow = patches.FancyArrowPatch(
+                (node1_x + x_adjustment,
+                 node1_y + y_adjustment),
+                (node2_x - x_adjustment,
+                 node2_y - y_adjustment),
+                arrowstyle="Simple,tail_width=0.5,head_width=3,head_length=5",
+                color="k", antialiased=True)
+            plt.gcf().gca().add_patch(arrow)
+    plt.axis('scaled')

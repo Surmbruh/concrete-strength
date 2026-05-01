@@ -1,0 +1,32 @@
+{
+  "surrogates": [
+    {
+      "name": "strength",
+      "data_path": "../data/synthetic_training_data.csv",
+      "components": [
+        "cement",
+        "sand",
+        "gravel",
+        "water"
+      ],
+      "properties": ["strength_28"]
+    }
+  ],
+  "model": {
+    "architecture": "variational_bnn",
+    "hidden_layers": [32, 24, 16],
+    "prior_std": 1.0,
+    "posterior_rho_init": -3.0,
+    "kl_weight": 0.02
+  },
+  "training": {
+    "learning_rate": 0.001,
+    "epochs": 308,
+    "batch_size": 64,
+    "validation_split": 0.2,
+    "l2": 0.001,
+    "seed": 77,
+    "mc_samples": 24,
+    "early_stopping_rounds": 40
+  }
+}

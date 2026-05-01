@@ -1,0 +1,36 @@
+{
+  "generation_count": 5,
+  "best_fitness": 0.8190470337748234,
+  "best_fitness_history": [
+    0.8066553946416921,
+    0.8084910811007582,
+    0.8121664608257348,
+    0.8128116372654254,
+    0.8190470337748234
+  ],
+  "mean_fitness_history": [
+    0.7993259311223757,
+    0.8025532834718584,
+    0.804929720618398,
+    0.8077780356052028,
+    0.8093277476313142
+  ],
+  "median_fitness_history": [
+    0.799718464760696,
+    0.8027268257326616,
+    0.8045615734658642,
+    0.8075749488878037,
+    0.8097241354771711
+  ],
+  "stdev_fitness_history": [
+    0.0031540715788606942,
+    0.003084939194919179,
+    0.0028409906462098385,
+    0.0030223420615106953,
+    0.003434265414756247
+  ],
+  "files": {
+    "fitness_history": "artifacts\\comparison\\C\\discriminator_neat\\fitness_history.csv",
+    "summary": "artifacts\\comparison\\C\\discriminator_neat\\neat_statistics.json"
+  }
+}

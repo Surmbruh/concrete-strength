@@ -1,0 +1,36 @@
+{
+  "generation_count": 5,
+  "best_fitness": 0.8088784532988397,
+  "best_fitness_history": [
+    0.8064095602694872,
+    0.8066389765798492,
+    0.8071022695103054,
+    0.807630394676001,
+    0.8088784532988397
+  ],
+  "mean_fitness_history": [
+    0.7981533826417281,
+    0.7991656735392566,
+    0.8010629838091794,
+    0.801828647279253,
+    0.8024420314512655
+  ],
+  "median_fitness_history": [
+    0.7982397487992372,
+    0.7992672414017863,
+    0.8012195754791003,
+    0.8019536956605458,
+    0.8024585562586819
+  ],
+  "stdev_fitness_history": [
+    0.0028062084093612725,
+    0.003011328935433721,
+    0.00224402837766218,
+    0.0027987784128160973,
+    0.002620356975420695
+  ],
+  "files": {
+    "fitness_history": "artifacts\\transfer\\gan_ft\\discriminator_neat\\fitness_history.csv",
+    "summary": "artifacts\\transfer\\gan_ft\\discriminator_neat\\neat_statistics.json"
+  }
+}

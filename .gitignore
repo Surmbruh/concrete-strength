@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Model weights (heavy, stored on Google Drive)
+*.pt
+*.pkl
+
+# NEAT temp files  
+neat_temp_*.ini
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Experiment artifacts (NEAT dot files, network JSONs)
+# Keep only result JSONs
+artifacts/**/*.dot
+artifacts/**/*.ini
+artifacts/**/*_network.json
+artifacts/**/*_override.ini
+
+# Debug
+debug_*.py

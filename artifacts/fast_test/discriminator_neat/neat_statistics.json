@@ -1,0 +1,24 @@
+{
+  "generation_count": 2,
+  "best_fitness": 0.810534849398923,
+  "best_fitness_history": [
+    0.8056061415603353,
+    0.810534849398923
+  ],
+  "mean_fitness_history": [
+    0.8001305998310312,
+    0.8044602010296559
+  ],
+  "median_fitness_history": [
+    0.8002527965551421,
+    0.8045102378970471
+  ],
+  "stdev_fitness_history": [
+    0.0030137092720871057,
+    0.003457792273268908
+  ],
+  "files": {
+    "fitness_history": "artifacts\\fast_test\\discriminator_neat\\fitness_history.csv",
+    "summary": "artifacts\\fast_test\\discriminator_neat\\neat_statistics.json"
+  }
+}
