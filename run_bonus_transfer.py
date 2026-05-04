@@ -57,27 +57,39 @@ class EWC:
         self.fisher = self._compute_fisher(dataloader_x, dataloader_y, n_samples)
     
     def _compute_fisher(self, x_data, y_data, n_samples):
-        """Вычислить диагональ Fisher Information Matrix."""
+        """Вычислить диагональ Fisher Information Matrix.
+        
+        Uses eval mode (BatchNorm with running stats) to avoid batch_size=1 crash.
+        Gradients from NLL still flow through parameters for Fisher estimation.
+        """
         fisher = {n: torch.zeros_like(p) for n, p in self.model.named_parameters()
                   if p.requires_grad}
         
-        self.model.train()
+        self.model.eval()  # Use running stats for BatchNorm
         n = min(n_samples, len(x_data))
         indices = np.random.choice(len(x_data), n, replace=False)
         
-        for idx in indices:
-            x = torch.as_tensor(x_data[idx:idx+1], dtype=torch.float32, device=self.device)
-            y = torch.as_tensor(y_data[idx:idx+1].reshape(1, 1), dtype=torch.float32, device=self.device)
+        # Process in mini-batches to be efficient
+        batch_size = 8
+        n_processed = 0
+        for i in range(0, n, batch_size):
+            batch_idx = indices[i:i + batch_size]
+            x = torch.as_tensor(x_data[batch_idx], dtype=torch.float32, device=self.device)
+            y = torch.as_tensor(y_data[batch_idx].reshape(-1, 1), dtype=torch.float32, device=self.device)
             
             self.model.zero_grad()
             mu, sigma = self.model(x)
-            # NLL loss
             nll = 0.5 * (torch.log(sigma ** 2) + (y - mu) ** 2 / (sigma ** 2))
             nll.mean().backward()
             
             for name, param in self.model.named_parameters():
                 if param.requires_grad and param.grad is not None:
-                    fisher[name] += param.grad.detach() ** 2 / n
+                    fisher[name] += param.grad.detach() ** 2 * len(batch_idx)
+            n_processed += len(batch_idx)
+        
+        # Normalize
+        for name in fisher:
+            fisher[name] /= max(n_processed, 1)
         
         return fisher
     

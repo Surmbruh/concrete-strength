@@ -238,8 +238,11 @@ class ConcreteGenerator(nn.Module):
                 mu, sigma = self.forward(x_tensor)
             return mu.cpu().numpy(), sigma.cpu().numpy()
 
-        # MC-dropout: оставляем dropout включённым
-        self.train()
+        # MC-dropout: enable only Dropout, keep BatchNorm in eval mode
+        self.eval()
+        for m in self.modules():
+            if isinstance(m, (nn.Dropout, nn.Dropout1d, nn.Dropout2d)):
+                m.train()
         mus, sigmas = [], []
         with torch.no_grad():
             for _ in range(mc_samples):

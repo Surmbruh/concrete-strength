@@ -252,19 +252,20 @@ def run_time_curves(data, ds, feat_scaler, tgt_scaler, tracker, checkpoint_dir):
         # Find log_age column index (last column in derived)
         log_age_idx = data["input_dim"] - 1  # log_age is last feature
         
-        # Predict for different ages
-        predictions = []
-        for t in time_points:
-            x_t = x_base.copy()
-            # Update log_age (need to standardize)
+        # Build batch of all time variants at once
+        x_batch = np.tile(x_base, (len(time_points), 1))  # [n_times, input_dim]
+        for j, t in enumerate(time_points):
             raw_log_age = np.log(t)
-            # The scaler was fit on training data, get log_age stats
-            x_t[log_age_idx] = (raw_log_age - feat_scaler.mean[log_age_idx]) / feat_scaler.scale[log_age_idx]
-            
-            mu_s, sigma_s = gen.predict(x_t.reshape(1, -1), mc_samples=20)
-            pred = tgt_scaler.inverse_transform(mu_s).ravel()[0]
-            std = sigma_s.ravel()[0] * tgt_scaler.scale[0]
-            predictions.append({"t": int(t), "pred": float(pred), "std": float(std)})
+            x_batch[j, log_age_idx] = (raw_log_age - feat_scaler.mean[log_age_idx]) / feat_scaler.scale[log_age_idx]
+        
+        # Predict all at once (batch_size=7, safe for BatchNorm)
+        mu_s, sigma_s = gen.predict(x_batch, mc_samples=20)
+        mu_orig = tgt_scaler.inverse_transform(mu_s).ravel()
+        std_orig = sigma_s.ravel() * tgt_scaler.scale[0]
+        
+        predictions = []
+        for j, t in enumerate(time_points):
+            predictions.append({"t": int(t), "pred": float(mu_orig[j]), "std": float(std_orig[j])})
         
         curves.append({
             "sample_idx": int(idx),
