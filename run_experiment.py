@@ -167,7 +167,13 @@ def run_supervised_grid(data, tracker, checkpoint_dir):
 
 
 def run_gan_tune(data, tracker, checkpoint_dir, top_k=3):
-    """Tune GAN on top-K supervised configs."""
+    """Tune GAN on top-K supervised configs.
+
+    Optimized: 
+    - Reuses saved .pt checkpoints instead of re-training supervised base
+    - Shares NEAT discriminator across all GAN LRs for the same architecture
+    - 500 epochs (matches our known best from previous CPU experiments)
+    """
     log("=" * 60)
     log(f"GAN TUNING (top-{top_k} supervised configs)")
     log("=" * 60)
@@ -179,56 +185,111 @@ def run_gan_tune(data, tracker, checkpoint_dir, top_k=3):
         return []
 
     sup_results = json.load(open(grid_file))[:top_k]
-    gan_lrs = [2e-4, 1e-4, 5e-5]
+    gan_lrs = [1e-4, 5e-5, 2e-4]  # 1e-4 first — known best from prior experiments
     results = []
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     for sup in sup_results:
-        # Re-train supervised base
-        gen_cfg = GeneratorConfig(
-            input_dim=data["input_dim"], hidden_dims=sup["hidden"],
-            epochs=500, batch_size=sup["batch_size"], learning_rate=sup["lr"],
-            weight_decay=1e-4, dropout=sup["dropout"], seed=42,
-        )
-        gen_base = ConcreteGenerator(gen_cfg)
-        train_generator_supervised(
-            gen_base, data["train"]["x"], data["train"]["y"],
-            data["val"]["x"], data["val"]["y"], config=gen_cfg,
-        )
+        sup_tag = sup["tag"]
+        hidden = sup["hidden"]
+        dropout = sup["dropout"]
+        bs = sup.get("batch_size", 64)
+
+        # ── 1. Load or re-train supervised base ──────────────────────
+        sup_ckpt = checkpoint_dir / f"{sup_tag}.pt"
+        gen_base = ConcreteGenerator(GeneratorConfig(
+            input_dim=data["input_dim"], hidden_dims=hidden,
+            dropout=dropout, seed=42,
+        ))
+        if sup_ckpt.exists():
+            gen_base.load_state_dict(
+                torch.load(sup_ckpt, map_location="cpu", weights_only=True)
+            )
+            log(f"  [{sup_tag}] Loaded supervised checkpoint.")
+        else:
+            log(f"  [{sup_tag}] Checkpoint not found, re-training supervised...")
+            gen_cfg = GeneratorConfig(
+                input_dim=data["input_dim"], hidden_dims=hidden, epochs=300,
+                batch_size=bs, learning_rate=sup["lr"],
+                weight_decay=1e-4, dropout=dropout, seed=42,
+            )
+            train_generator_supervised(
+                gen_base, data["train"]["x"], data["train"]["y"],
+                data["val"]["x"], data["val"]["y"], config=gen_cfg,
+            )
+            gen_base = gen_base.cpu()
         base_state = {k: v.clone() for k, v in gen_base.state_dict().items()}
 
-        for gan_lr in gan_lrs:
-            tag = f"gan_{sup['tag']}_glr{gan_lr}"
-            config = {**sup, "gan_lr": gan_lr, "gan_epochs": 300,
-                      "neat_pop": 50, "neat_gen": 5}
+        # ── 2. Evolve NEAT once, share across LR sweep ────────────────
+        neat_artifacts_dir = str(checkpoint_dir / f"neat_{sup_tag}")
+        disc_ckpt = checkpoint_dir / f"disc_{sup_tag}.pt"
 
+        if not disc_ckpt.exists():
+            log(f"  [{sup_tag}] NEAT evolving (shared across LRs)...")
+            disc_probe = NeatBNNDiscriminator(DiscriminatorConfig(
+                algorithm="bneatest", neat_generations=5, pop_size=50,
+                max_eval_samples=150, svi_epochs=20, mc_samples=5, seed=42,
+            ))
+            gen_probe = ConcreteGenerator(GeneratorConfig(
+                input_dim=data["input_dim"], hidden_dims=hidden,
+                dropout=dropout, seed=42,
+            ))
+            gan_probe = ConcreteGAN(gen_probe, disc_probe, config=GANConfig(
+                total_epochs=1, seed=42,  # dummy, just for NEAT
+            ))
+            gan_probe.prepare_discriminator(
+                data["train"]["x"], data["train"]["y"],
+                artifacts_dir=neat_artifacts_dir,
+            )
+            disc_probe.save(disc_ckpt)
+            disc_state = disc_probe
+            log(f"  [{sup_tag}] NEAT done, cached.")
+        else:
+            disc_state = NeatBNNDiscriminator(DiscriminatorConfig(
+                algorithm="bneatest", neat_generations=5, pop_size=50,
+                max_eval_samples=150, svi_epochs=20, mc_samples=5, seed=42,
+            ))
+            disc_state.load(disc_ckpt)
+            log(f"  [{sup_tag}] NEAT loaded from cache.")
+
+        # ── 3. Sweep over GAN LRs ─────────────────────────────────────
+        for gan_lr in gan_lrs:
+            tag = f"gan_{sup_tag}_glr{gan_lr}"
+            config = {
+                **{k: sup[k] for k in ["lr", "hidden", "dropout", "batch_size"]
+                   if k in sup},
+                "gan_lr": gan_lr, "gan_epochs": 500,
+                "neat_pop": 50, "neat_gen": 5,
+            }
+
+            t0 = time.time()
             with tracker.run(tag, config=config, tags=["gan", "tune"]) as run:
                 gen = ConcreteGenerator(GeneratorConfig(
-                    input_dim=data["input_dim"], hidden_dims=sup["hidden"],
-                    dropout=sup["dropout"], seed=42,
+                    input_dim=data["input_dim"], hidden_dims=hidden,
+                    dropout=dropout, seed=42,
                 ))
                 gen.load_state_dict({k: v.clone() for k, v in base_state.items()})
 
-                disc = NeatBNNDiscriminator(DiscriminatorConfig(
+                # Fresh discriminator each LR (same topology, re-init BNN weights)
+                disc_fresh = NeatBNNDiscriminator(DiscriminatorConfig(
                     algorithm="bneatest", neat_generations=5, pop_size=50,
                     max_eval_samples=150, svi_epochs=20, mc_samples=5, seed=42,
                 ))
-                gan = ConcreteGAN(gen, disc, config=GANConfig(
-                    total_epochs=300, phase1_end=60, phase2_end=150,
+                disc_fresh.load(disc_ckpt)
+
+                gan = ConcreteGAN(gen, disc_fresh, config=GANConfig(
+                    total_epochs=500, phase1_end=100, phase2_end=250,
                     generator_lr=gan_lr, generator_weight_decay=1e-4,
-                    batch_size=sup["batch_size"], val_interval=5,
-                    early_stopping_patience=60, lambda_physics=0.0, seed=42,
+                    batch_size=bs, val_interval=5,
+                    early_stopping_patience=80, lambda_physics=0.0, seed=42,
                 ))
-                log(f"  [{tag}] NEAT evolving...")
-                gan.prepare_discriminator(
-                    data["train"]["x"], data["train"]["y"],
-                    artifacts_dir=str(checkpoint_dir / tag),
-                )
-                log(f"  [{tag}] GAN training...")
+                log(f"    [{tag}] GAN training (500ep, lr={gan_lr})...")
                 history = gan.train(
                     data["train"]["x"], data["train"]["y"],
                     data["val"]["x"], data["val"]["y"],
                 )
 
+                gen = gen.cpu()
                 metrics = eval_model(gen, data)
                 metrics["best_epoch"] = history.best_epoch
                 run.log_metrics(metrics)
@@ -237,8 +298,10 @@ def run_gan_tune(data, tracker, checkpoint_dir, top_k=3):
                 torch.save(gen.state_dict(), save_path)
                 run.log_artifact("model", str(save_path))
 
+            dt = time.time() - t0
             results.append({"tag": tag, **config, **metrics})
-            log(f"  {tag}: MAE={metrics['mae']:.2f}, R2={metrics['r2']:.4f}")
+            log(f"    [{tag}] MAE={metrics['mae']:.2f}, R2={metrics['r2']:.4f}, "
+                f"best_ep={metrics['best_epoch']} ({dt:.0f}s)")
 
     results.sort(key=lambda r: r["mae"])
     log("\nTOP 5 GAN:")
@@ -248,6 +311,8 @@ def run_gan_tune(data, tracker, checkpoint_dir, top_k=3):
     with open(checkpoint_dir / "gan_tune.json", "w") as f:
         json.dump(results, f, indent=2, default=str)
     return results
+
+
 
 
 def run_full_pipeline(data, tracker, checkpoint_dir, epochs=500):
