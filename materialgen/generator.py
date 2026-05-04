@@ -229,13 +229,14 @@ class ConcreteGenerator(nn.Module):
         -------
         (mean_mu, total_std) — средний прогноз и полная неопределённость
         """
-        x_tensor = torch.as_tensor(x, dtype=torch.float32)
+        device = next(self.parameters()).device
+        x_tensor = torch.as_tensor(x, dtype=torch.float32, device=device)
 
         if mc_samples <= 1:
             self.eval()
             with torch.no_grad():
                 mu, sigma = self.forward(x_tensor)
-            return mu.numpy(), sigma.numpy()
+            return mu.cpu().numpy(), sigma.cpu().numpy()
 
         # MC-dropout: оставляем dropout включённым
         self.train()
@@ -243,8 +244,8 @@ class ConcreteGenerator(nn.Module):
         with torch.no_grad():
             for _ in range(mc_samples):
                 mu, sigma = self.forward(x_tensor)
-                mus.append(mu.numpy())
-                sigmas.append(sigma.numpy())
+                mus.append(mu.cpu().numpy())
+                sigmas.append(sigma.cpu().numpy())
 
         mus = np.stack(mus, axis=0)       # [mc, batch, 1]
         sigmas = np.stack(sigmas, axis=0)
@@ -282,7 +283,7 @@ def train_generator_supervised(
         config = generator.config
 
     torch.manual_seed(config.seed)
-    device = torch.device("cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     generator = generator.to(device)
 
     optimizer = torch.optim.Adam(

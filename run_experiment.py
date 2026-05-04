@@ -97,7 +97,10 @@ def eval_model(gen, data, mc_samples=30):
 # ====================================================================
 
 def run_supervised_grid(data, tracker, checkpoint_dir):
-    """Grid search over supervised generator configs."""
+    """Grid search over supervised generator configs.
+
+    Optimized: 18 configs (3 lr × 3 arch × 2 dropout), 200 epochs w/ early stopping.
+    """
     log("=" * 60)
     log("SUPERVISED HYPERPARAMETER GRID SEARCH")
     log("=" * 60)
@@ -105,29 +108,31 @@ def run_supervised_grid(data, tracker, checkpoint_dir):
     search = {
         "lr": [1e-3, 5e-4, 2e-4],
         "hidden": [[256, 128, 64], [128, 64, 32], [256, 128, 64, 32]],
-        "dropout": [0.1, 0.2, 0.3],
-        "batch_size": [32, 64, 128],
+        "dropout": [0.1, 0.2],
     }
+    batch_size = 64  # fixed — not worth tuning for this dataset size
 
     results = []
     total = 1
     for v in search.values():
         total *= len(v)
-    log(f"Total configs: {total}")
+    log(f"Total configs: {total} (batch_size={batch_size} fixed)")
+    log(f"Device: {'cuda' if torch.cuda.is_available() else 'cpu'}")
 
-    for i, (lr, hidden, dropout, bs) in enumerate(itertools.product(
-        search["lr"], search["hidden"], search["dropout"], search["batch_size"]
+    for i, (lr, hidden, dropout) in enumerate(itertools.product(
+        search["lr"], search["hidden"], search["dropout"]
     )):
-        tag = f"sup_lr{lr}_h{'x'.join(map(str,hidden))}_d{dropout}_bs{bs}"
+        tag = f"sup_lr{lr}_h{'x'.join(map(str,hidden))}_d{dropout}"
         config = {
             "lr": lr, "hidden": hidden, "dropout": dropout,
-            "batch_size": bs, "epochs": 500,
+            "batch_size": batch_size, "epochs": 200,
         }
 
+        t0 = time.time()
         with tracker.run(tag, config=config, tags=["supervised", "grid"]) as run:
             gen_cfg = GeneratorConfig(
                 input_dim=data["input_dim"], hidden_dims=hidden,
-                epochs=500, batch_size=bs, learning_rate=lr,
+                epochs=200, batch_size=batch_size, learning_rate=lr,
                 weight_decay=1e-4, dropout=dropout, seed=42,
             )
             gen = ConcreteGenerator(gen_cfg)
@@ -135,18 +140,21 @@ def run_supervised_grid(data, tracker, checkpoint_dir):
                 gen, data["train"]["x"], data["train"]["y"],
                 data["val"]["x"], data["val"]["y"], config=gen_cfg,
             )
+            # Move to CPU for evaluation consistency
+            gen = gen.cpu()
             metrics = eval_model(gen, data)
             metrics["epochs_run"] = hist["epochs_run"]
             metrics["val_loss"] = hist["best_val_loss"]
             run.log_metrics(metrics)
 
-            # Save best model
+            # Save model checkpoint
             save_path = checkpoint_dir / f"{tag}.pt"
             torch.save(gen.state_dict(), save_path)
             run.log_artifact("model", str(save_path))
 
+        dt = time.time() - t0
         results.append({"tag": tag, **config, **metrics})
-        log(f"  [{i+1}/{total}] {tag}: MAE={metrics['mae']:.2f}, R2={metrics['r2']:.4f}")
+        log(f"  [{i+1}/{total}] {tag}: MAE={metrics['mae']:.2f}, R2={metrics['r2']:.4f} ({dt:.0f}s, {metrics['epochs_run']}ep)")
 
     results.sort(key=lambda r: r["mae"])
     log("\nTOP 5:")

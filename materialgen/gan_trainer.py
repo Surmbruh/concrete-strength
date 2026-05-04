@@ -252,7 +252,7 @@ class ConcreteGAN:
         """
         cfg = self.config
         torch.manual_seed(cfg.seed)
-        device = torch.device("cpu")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.generator = self.generator.to(device)
 
@@ -440,10 +440,11 @@ class ConcreteGAN:
     ) -> dict[str, float]:
         """Валидация генератора."""
         self.generator.eval()
-        x_v = torch.as_tensor(x_val, dtype=torch.float32)
+        device = next(self.generator.parameters()).device
+        x_v = torch.as_tensor(x_val, dtype=torch.float32, device=device)
         with torch.no_grad():
             mu, sigma = self.generator(x_v)
-        y_pred = mu.numpy().ravel()
+        y_pred = mu.cpu().numpy().ravel()
         y_true = np.asarray(y_val).ravel()
 
         metrics = compute_regression_metrics(y_true, y_pred)
