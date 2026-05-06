@@ -22,7 +22,7 @@
 # ## 1. Setup
 
 # %%
-import os, sys, json, time
+import os, sys, subprocess, json, time
 import numpy as np
 import pandas as pd
 import torch
@@ -42,13 +42,22 @@ drive.mount('/content/drive')
 
 # Clone / pull repo
 if os.path.exists(REPO_DIR):
+    print("Repo exists, pulling latest...")
     os.chdir(REPO_DIR)
-    os.system("git pull")
+    subprocess.run(["git", "pull"], check=True)
 else:
-    os.system(f"git clone https://github.com/{GITHUB_USERNAME}/{REPO_NAME}.git {REPO_DIR}")
+    print("Cloning repo...")
+    result = subprocess.run(
+        ["git", "clone", f"https://github.com/{GITHUB_USERNAME}/{REPO_NAME}.git", REPO_DIR],
+        capture_output=True, text=True)
+    if result.returncode != 0 or not os.path.exists(REPO_DIR):
+        raise RuntimeError(
+            f"git clone failed! Make sure the repo is PUBLIC.\n"
+            f"URL: https://github.com/{GITHUB_USERNAME}/{REPO_NAME}\n"
+            f"stderr: {result.stderr}")
     os.chdir(REPO_DIR)
 
-os.system("pip install -e . -q")
+subprocess.run([sys.executable, "-m", "pip", "install", "-e", ".", "-q"], check=True)
 print(f"Working dir: {os.getcwd()}")
 print(f"PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}")
 
