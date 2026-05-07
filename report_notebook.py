@@ -400,7 +400,81 @@ if os.path.exists(tp_path):
         print("(доля составов, где предсказанная прочность монотонно растёт с возрастом)")
 
 # %% [markdown]
-# ## 6. Заключение
+# ## 6. Ablation Study
+# 
+# Обоснование архитектурных решений: что даёт каждый компонент?
+
+# %%
+abl_path = os.path.join(CHECKPOINT_DIR, "ablation_results.json")
+if os.path.exists(abl_path):
+    with open(abl_path) as f:
+        abl = json.load(f)
+    
+    # 6.1 Supervised vs GAN
+    if "supervised_vs_gan" in abl:
+        svg = abl["supervised_vs_gan"]
+        print("=== Supervised vs GAN ===")
+        if svg.get("supervised"):
+            print(f"  Supervised: MAE = {svg['supervised']['mae_mean']:.2f} "
+                  f"± {svg['supervised']['mae_std']:.2f}")
+        if svg.get("gan"):
+            print(f"  GAN:        MAE = {svg['gan']['mae_mean']:.2f} "
+                  f"± {svg['gan']['mae_std']:.2f}")
+            if svg.get("supervised"):
+                imp = svg['supervised']['mae_mean'] - svg['gan']['mae_mean']
+                print(f"  → GAN улучшает на {imp:.2f} MPa")
+    
+    # 6.2 Uncertainty quality
+    if "uncertainty" in abl and abl["uncertainty"]:
+        unc = abl["uncertainty"]
+        print("\n=== Качество неопределённости ===")
+        for k in ["mc_1", "mc_5", "mc_20", "mc_50"]:
+            if k in unc:
+                mc = unc[k]
+                print(f"  MC={mc['mc_samples']:3d}: "
+                      f"PICP={mc['picp']:.1%}, MPIW={mc['mpiw']:.1f}")
+        
+        if "uncertainty_error_correlation" in unc:
+            print(f"  σ-error корреляция: {unc['uncertainty_error_correlation']:.3f} "
+                  f"(> 0.3 = модель знает где неуверена)")
+        
+        # Calibration plot
+        if "calibration" in unc:
+            cal = unc["calibration"]
+            expected = [c["expected_coverage"] for c in cal]
+            actual = [c["actual_coverage"] for c in cal]
+            
+            fig, ax = plt.subplots(figsize=(6, 6))
+            ax.plot([0, 1], [0, 1], 'k--', alpha=0.5, label='Идеальная калибровка')
+            ax.plot(expected, actual, 'o-', color='#2196F3', linewidth=2,
+                    markersize=8, label='Наша модель')
+            ax.fill_between(expected, 
+                           [e - 0.05 for e in expected],
+                           [e + 0.05 for e in expected],
+                           alpha=0.1, color='gray', label='±5% зона')
+            ax.set_xlabel('Ожидаемое покрытие')
+            ax.set_ylabel('Фактическое покрытие')
+            ax.set_title('Calibration Plot (Reliability Diagram)')
+            ax.legend()
+            ax.grid(alpha=0.3)
+            ax.set_xlim(0.4, 1.05)
+            ax.set_ylim(0.4, 1.05)
+            plt.tight_layout()
+            plt.savefig(os.path.join(EXPERIMENTS_DIR, "fig_calibration.png"), dpi=150)
+            plt.show()
+    
+    # 6.3 Dropout
+    if "physics" in abl and abl["physics"]:
+        ph = abl["physics"]
+        print("\n=== Dropout (epistemic uncertainty) ===")
+        for k, v in ph.items():
+            picp_str = f"{v['picp']:.1%}" if v.get('picp') else "N/A"
+            print(f"  {k}: MAE={v['mae']:.3f}, PICP={picp_str}")
+else:
+    print("Ablation results not found. Run: python run_ablation.py --output_dir ...")
+
+# %% [markdown]
+# ## 7. Заключение
 # 
 # ### Ключевые результаты
 # 
