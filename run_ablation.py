@@ -296,8 +296,8 @@ def ablation_physics(data, checkpoint_dir):
             "picp": ev.calibration.picp if ev.calibration else None,
             "mpiw": ev.calibration.mpiw if ev.calibration else None,
         }
-        log(f"  {label}: MAE={ev.regression.mae:.3f}, "
-            f"PICP={ev.calibration.picp:.1% if ev.calibration else 'N/A'}")
+        picp_str = f"{ev.calibration.picp:.1%}" if ev.calibration else "N/A"
+        log(f"  {label}: MAE={ev.regression.mae:.3f}, PICP={picp_str}")
 
     if "no_dropout" in results and "with_dropout" in results:
         log(f"\n  Dropout value:")
