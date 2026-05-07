@@ -357,8 +357,8 @@ def main():
     log("\n3. Dropout (epistemic uncertainty):")
     if r3:
         for k, v in r3.items():
-            log(f"   {k}: MAE={v['mae']:.3f}, "
-                f"PICP={v.get('picp', 0):.1% if v.get('picp') else 'N/A'}")
+            picp_s = f"{v['picp']:.1%}" if v.get('picp') else "N/A"
+            log(f"   {k}: MAE={v['mae']:.3f}, PICP={picp_s}")
 
     # Save
     all_results = {"supervised_vs_gan": r1, "uncertainty": r2, "physics": r3}
