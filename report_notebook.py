@@ -712,7 +712,7 @@ else:
 #
 # Подготовьте CSV файл с колонками:
 # ```
-# cement,water,sand,coarse_agg,fly_ash,blast_furnace_slag,superplasticizer,age_days
+# cement,water,sand,coarse_agg,fine_add_1,fine_add_2,plasticizer,age_days
 # 350,180,750,1050,0,0,5,28
 # 300,190,800,1000,50,0,8,7
 # ```
@@ -754,8 +754,7 @@ ds2 = load_and_unify_datasets("data")
 sp2 = ss(ds2, seed=42)
 test_idx = sp2["test"][:5]
 demo_df = ds2.features.iloc[test_idx][
-    ["cement","water","sand","coarse_agg","fly_ash",
-     "blast_furnace_slag","superplasticizer"]].copy()
+    ds2.composition_columns].copy()
 demo_df["age_days"] = ds2.age_days.iloc[test_idx].values
 demo_df["true_strength"] = ds2.target.iloc[test_idx].values
 print(demo_df.to_string(index=False))
