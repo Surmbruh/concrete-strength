@@ -46,14 +46,17 @@ matplotlib.rcParams.update({
 REPO_NAME = "concrete-strength"
 GITHUB_USERNAME = "Surmbruh"
 REPO_DIR = f"/content/{REPO_NAME}"
-EXPERIMENTS_DIR = "/content/drive/MyDrive/concrete_project/experiments"
-CHECKPOINT_DIR = os.path.join(EXPERIMENTS_DIR, "checkpoints")
 
-# Mount Drive (здесь хранятся обученные модели)
-from google.colab import drive
-drive.mount('/content/drive')
-os.makedirs(EXPERIMENTS_DIR, exist_ok=True)
-os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+# Пытаемся смонтировать Drive (для автора). Для жюри — не обязательно.
+DRIVE_CKPT = "/content/drive/MyDrive/concrete_project/experiments/checkpoints"
+REPO_CKPT = None  # будет определено после clone
+
+try:
+    from google.colab import drive
+    drive.mount('/content/drive')
+    HAS_DRIVE = os.path.exists(DRIVE_CKPT)
+except Exception:
+    HAS_DRIVE = False
 
 # Clone / pull repo
 if os.path.exists(REPO_DIR):
@@ -72,7 +75,31 @@ else:
     os.chdir(REPO_DIR)
 
 subprocess.run([sys.executable, "-m", "pip", "install", "-e", ".", "-q"], check=True)
+
+# ── Определяем где чекпоинты ──────────────────────────────────
+REPO_CKPT = os.path.join(os.getcwd(), "checkpoints")
+
+if HAS_DRIVE:
+    # Автор: чекпоинты на Google Drive
+    CHECKPOINT_DIR = DRIVE_CKPT
+    EXPERIMENTS_DIR = "/content/drive/MyDrive/concrete_project/experiments"
+    print("📂 Режим АВТОРА: чекпоинты из Google Drive")
+elif os.path.exists(REPO_CKPT) and any(f.endswith('.pt') for f in os.listdir(REPO_CKPT)):
+    # Жюри: чекпоинты в репо
+    CHECKPOINT_DIR = REPO_CKPT
+    EXPERIMENTS_DIR = "/content/experiments"
+    print("📂 Режим ЖЮРИ: чекпоинты из репозитория")
+else:
+    # Нет чекпоинтов нигде
+    CHECKPOINT_DIR = REPO_CKPT
+    EXPERIMENTS_DIR = "/content/experiments"
+    print("⚠️  Чекпоинты не найдены! Запустите обучение или скачайте чекпоинты.")
+
+os.makedirs(EXPERIMENTS_DIR, exist_ok=True)
+os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+
 print(f"Working dir: {os.getcwd()}")
+print(f"Checkpoints: {CHECKPOINT_DIR}")
 print(f"PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}")
 
 # %% [markdown]

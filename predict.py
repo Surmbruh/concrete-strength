@@ -143,7 +143,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--input", required=True, help="CSV с данными")
     parser.add_argument("--output", default=None, help="Выходной CSV")
-    parser.add_argument("--checkpoint_dir", default="experiments/checkpoints")
+    parser.add_argument("--checkpoint_dir", default="checkpoints",
+                       help="Папка с .pt чекпоинтами (по умолчанию: checkpoints/)")
     parser.add_argument("--data_dir", default="data")
     parser.add_argument("--method", choices=["single", "ensemble"],
                        default="ensemble")
