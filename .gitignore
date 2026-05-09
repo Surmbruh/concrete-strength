@@ -9,6 +9,8 @@ build/
 # Model weights (heavy, stored on Google Drive)
 *.pt
 *.pkl
+# Exception: pre-trained checkpoints for jury inference
+!checkpoints/*.pt
 
 # NEAT temp files  
 neat_temp_*.ini
