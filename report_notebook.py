@@ -745,24 +745,100 @@ else:
 # | `--mc_samples 30` | MC-Dropout сэмплы | Больше = точнее σ, медленнее |
 
 # %%
-# Демонстрация инференса на тестовых данных
-print("═══ Демонстрация predict.py ═══\n")
-print("Пример входных данных (первые 5 строк test set):")
+# ══════════════════════════════════════════════════════════════
+# ЗАПУСК МОДЕЛИ НА ВАШИХ ДАННЫХ
+# ══════════════════════════════════════════════════════════════
+#
+# Способ 1: Загрузите свой CSV через кнопку ниже
+# Способ 2: Используйте встроенный тестовый набор (test_input.csv)
+#
+# Формат CSV (обязательные колонки):
+#   cement, water, sand, coarse_agg, fine_add_1, fine_add_2,
+#   plasticizer, age_days
 
-from materialgen.data_preparation import load_and_unify_datasets, stratified_split as ss
-ds2 = load_and_unify_datasets("data")
-sp2 = ss(ds2, seed=42)
-test_idx = sp2["test"][:5]
-demo_df = ds2.features.iloc[test_idx][
-    ds2.composition_columns].copy()
-demo_df["age_days"] = ds2.age_days.iloc[test_idx].values
-demo_df["true_strength"] = ds2.target.iloc[test_idx].values
-print(demo_df.to_string(index=False))
+import subprocess
 
-print("\nКоманда для запуска:")
-print("  python predict.py --input your_data.csv \\")
-print("      --checkpoint_dir experiments/checkpoints \\")
-print("      --method ensemble")
+INPUT_CSV = None
+
+# --- Попытка загрузить файл через Colab виджет ---
+try:
+    from google.colab import files
+    print("📁 Загрузите CSV файл с составами бетона:")
+    print("   (или нажмите 'Cancel' чтобы использовать встроенный тест)\n")
+    uploaded = files.upload()
+    if uploaded:
+        INPUT_CSV = list(uploaded.keys())[0]
+        print(f"\n✅ Загружен: {INPUT_CSV}")
+except Exception:
+    pass
+
+# --- Fallback: встроенный тест ---
+if not INPUT_CSV:
+    INPUT_CSV = "test_input.csv"
+    print(f"Используем встроенный тестовый набор: {INPUT_CSV}")
+
+# --- Запуск predict.py ---
+cmd = [
+    sys.executable, "predict.py",
+    "--input", INPUT_CSV,
+    "--checkpoint_dir", CHECKPOINT_DIR,
+    "--method", "ensemble",
+    "--mc_samples", "30",
+    "--output", "predictions_output.csv",
+]
+print(f"\n🚀 Запуск: {' '.join(cmd[-8:])}\n")
+result = subprocess.run(cmd, capture_output=True, text=True)
+print(result.stdout)
+if result.returncode != 0:
+    print("❌ Ошибка:")
+    print(result.stderr)
+else:
+    # --- Показать результаты ---
+    out_df = pd.read_csv("predictions_output.csv")
+
+    print("\n" + "═" * 70)
+    print("РЕЗУЛЬТАТЫ ПРОГНОЗА")
+    print("═" * 70)
+
+    display_cols = ["cement", "water", "age_days",
+                    "predicted_strength", "uncertainty_95ci",
+                    "lower_bound", "upper_bound"]
+    display_cols = [c for c in display_cols if c in out_df.columns]
+    print(out_df[display_cols].to_string(index=False))
+
+    # --- Визуализация ---
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+    x_pos = np.arange(len(out_df))
+    mu = out_df["predicted_strength"].values
+    ci = out_df["uncertainty_95ci"].values
+
+    ax1.bar(x_pos, mu, color='#2196F3', alpha=0.8, edgecolor='white',
+            label='Прочность')
+    ax1.errorbar(x_pos, mu, yerr=ci, fmt='none', ecolor='#F44336',
+                 capsize=6, lw=2, label='95% CI')
+    ax1.set_xticks(x_pos)
+    ax1.set_xticklabels([f"#{i+1}\n{int(r['age_days'])}д"
+                         for i, r in out_df.iterrows()], fontsize=10)
+    ax1.set_ylabel('Прочность (МПа)', fontsize=12)
+    ax1.set_title('Предсказания с доверительными интервалами', fontsize=13)
+    ax1.legend(fontsize=10)
+
+    ax2.barh(x_pos, ci, color='#FF9800', alpha=0.8, edgecolor='white')
+    ax2.set_yticks(x_pos)
+    ax2.set_yticklabels([f"#{i+1} ({int(r['cement'])}ц/{int(r['water'])}в)"
+                         for i, r in out_df.iterrows()], fontsize=10)
+    ax2.set_xlabel('Неопределённость ±МПа', fontsize=12)
+    ax2.set_title('Оценка неопределённости по составам', fontsize=13)
+    ax2.invert_yaxis()
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(EXPERIMENTS_DIR, "fig_inference.png"),
+                dpi=150, bbox_inches='tight')
+    plt.show()
+
+    print(f"\n📊 Предсказания сохранены: predictions_output.csv")
+    print(f"   Загрузить результат можно через Files → predictions_output.csv")
 
 # %% [markdown]
 # ## 8. Заключение
