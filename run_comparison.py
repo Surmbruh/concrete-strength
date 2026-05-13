@@ -146,7 +146,7 @@ def main():
     # ==============================================================
     log("Loading data...")
     ds = load_and_unify_datasets("data")
-    split = stratified_split(ds, seed=SEED)
+    split = grouped_stratified_split(ds, seed=SEED)
     log(f"Data: {ds.n_samples} samples, train={len(split['train'])}, "
         f"val={len(split['val'])}, test={len(split['test'])}")
 

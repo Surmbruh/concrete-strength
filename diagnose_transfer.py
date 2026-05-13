@@ -27,7 +27,7 @@ def main():
     print(f"Total:           {ds_all.n_samples}")
 
     # Test set from full stratified split
-    split = stratified_split(ds_all, seed=SEED)
+    split = grouped_stratified_split(ds_all, seed=SEED)
     test_idx = split["test"]
     print(f"\nTest set size: {len(test_idx)}")
 

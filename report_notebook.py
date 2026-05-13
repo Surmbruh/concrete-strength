@@ -119,7 +119,7 @@ from materialgen.data_preparation import load_and_unify_datasets, stratified_spl
 from materialgen.scaler import StandardScaler
 
 ds = load_and_unify_datasets("data")
-split = stratified_split(ds, seed=42)
+split = grouped_stratified_split(ds, seed=42)
 
 x_all = ds.all_features
 y_all = ds.target.to_numpy()

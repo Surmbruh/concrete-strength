@@ -52,7 +52,7 @@ def main():
     # Data
     log("Loading data...")
     ds = load_and_unify_datasets("data")
-    split = stratified_split(ds, seed=SEED)
+    split = grouped_stratified_split(ds, seed=SEED)
     x_all = ds.all_features
     y_all = ds.target.to_numpy()
     ages_all = ds.age_days.to_numpy()

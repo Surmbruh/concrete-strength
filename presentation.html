@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Прогнозирование прочности бетона — GAN + NEAT + BNN</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/theme/black.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--a:#78B4CC;--a2:#D4A053;--a3:#7BAF7B;--bg:rgba(255,255,255,0.05)}
+.reveal{font-family:'Inter',sans-serif}
+.reveal h1,.reveal h2,.reveal h3{font-family:'Inter',sans-serif;font-weight:700;text-transform:none;letter-spacing:-.01em}
+.reveal h1{font-size:1.8em}
+.reveal h2{font-size:1.3em;color:var(--a);margin-bottom:.4em}
+.reveal h3{font-size:.85em;color:var(--a2);margin-bottom:.2em}
+.reveal p,.reveal li{font-size:.6em;line-height:1.45}
+.reveal ul{list-style:disc;padding-left:1.2em;margin:.3em 0}
+.reveal table{font-size:.55em;margin:.3em auto;border-collapse:collapse;width:auto}
+.reveal th{background:rgba(120,180,204,.15);color:var(--a);padding:5px 10px;border-bottom:2px solid rgba(120,180,204,.4)}
+.reveal td{padding:4px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
+.reveal code{font-size:.8em;background:rgba(120,180,204,.1);padding:1px 4px;border-radius:3px;color:var(--a)}
+.c{background:var(--bg);border-radius:8px;padding:12px 16px;margin:6px 0;border-left:3px solid var(--a)}
+.c2{border-left-color:var(--a2)}.c3{border-left-color:var(--a3)}
+.row{display:flex;gap:16px;align-items:flex-start}.row>div{flex:1;min-width:0}
+.sb{background:rgba(0,0,0,.3);border:1px solid rgba(120,180,204,.2);border-radius:6px;padding:10px 14px;font-family:monospace;font-size:.48em;line-height:1.6;text-align:left;white-space:pre}
+.mg{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:440px;margin:10px auto}
+.mb{background:var(--bg);border-radius:6px;padding:10px;text-align:center}
+.mb .v{font-size:1.5em;font-weight:900}.mb .l{font-size:.5em;opacity:.6;margin-top:2px}
+.reveal .slide-number{font-size:12px;color:var(--a)}
+.sm{font-size:.5em;opacity:.5;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="reveal"><div class="slides">
+
+<!-- 1. ТИТУЛЬНЫЙ -->
+<section>
+<h1 style="font-size:1.6em;margin-bottom:.15em">Прогнозирование прочности бетона<br>с использованием архитектуры<br>GAN + NEAT + BNN</h1>
+<p style="font-size:.6em;opacity:.7;margin-top:1em">Королева Мария · Долгих Данил</p>
+<aside class="notes">Представляем подход к прогнозированию прочности бетонной смеси на основе Generative Adversarial Network. Генератор — полносвязная сеть с residual connections — предсказывает прочность и оценку неопределённости. Дискриминатор — сеть с топологией, эволюционированной через NEAT, и байесовскими весами через Pyro SVI.</aside>
+</section>
+
+<!-- 2. АННОТАЦИЯ -->
+<section>
+<h2>Аннотация</h2>
+<div class="c" style="text-align:left;max-width:720px;margin:0 auto">
+<p style="font-size:.62em"><strong>Генератор</strong> — полносвязная сеть с residual connections — предсказывает прочность $\mu$ и оценку неопределённости $\sigma$ по составу бетонной смеси.</p>
+<p style="font-size:.62em;margin-top:8px"><strong>Дискриминатор</strong> — нейросеть с топологией, эволюционированной через NEAT, и байесовскими весами (BNN через Pyro SVI) — оценивает правдоподобность предсказаний генератора.</p>
+</div>
+<p style="font-size:.55em;margin-top:14px;opacity:.6">Основная метрика: MAE при $t = 28$ дней</p>
+</section>
+
+<!-- 3. ДАННЫЕ -->
+<section>
+<h2>2. Данные</h2>
+<h3>2.1 Источники данных</h3>
+<table>
+<tr><th>Источник</th><th>Записей</th><th>Особенности</th></tr>
+<tr><td>Normal_Concrete_DB</td><td>~2400</td><td>Классические составы, slump</td></tr>
+<tr><td>Boxcrete</td><td>~530</td><td>Временные ряды (1, 3, 5, 28 д.)</td></tr>
+<tr><td>Synthetic</td><td>~800</td><td>Сгенерированные по физ. моделям</td></tr>
+</table>
+<div class="row" style="margin-top:8px">
+<div class="c">
+<h3>7 композиционных признаков (кг/м³)</h3>
+<p style="font-size:.5em">cement, water, sand, coarse_agg, fine_add_1, fine_add_2, plasticizer</p>
+</div>
+<div class="c c2">
+<h3>3 производных признака</h3>
+<p style="font-size:.5em"><code>w/c ratio</code> — закон Абрамса<br><code>w/b ratio</code> — с добавками<br><code>log(1+age)</code> — логарифм возраста</p>
+</div>
+</div>
+<p class="sm">Итого 3745 записей · Split 70/15/15 · Стратификация по квантилям прочности</p>
+<aside class="notes">Каждый датасет покрывает свою нишу. Объединение позволяет модели видеть более широкий спектр рецептур. log_age отражает физику: набор прочности замедляется с возрастом. w/c ratio — ключевой фактор прочности по закону Абрамса (1918). Стратификация гарантирует, что каждый split содержит представительное распределение целевой переменной.</aside>
+</section>
+
+<!-- 4. АРХИТЕКТУРА -->
+<section>
+<h2>3. Архитектура: ConcreteGAN</h2>
+<div class="sb" style="margin:0 auto;max-width:600px">
+Состав (10 признаков)
+       │
+       ▼
+┌──────────────┐    (μ, σ)
+│  ГЕНЕРАТОР   │────────────────┐
+│  (ResNet FC) │                │
+└──────────────┘                ▼
+                      ┌─────────────────┐
+Реальные данные ────▶│ ДИСКРИМИНАТОР   │─▶ real/fake
+(состав, прочность)  │ (NEAT + BNN)    │
+                      └─────────────────┘
+                               │
+                      adversarial loss
+                               │
+                      обновление G</div>
+<aside class="notes">Conditional GAN для регрессии. Генератор принимает не шум, а вектор состава бетона и предсказывает пару (μ, σ). Дискриминатор получает пару (состав, прочность) и оценивает правдоподобность. Adversarial loss действует как дополнительный регуляризатор к supervised loss.</aside>
+</section>
+
+<!-- 5. ГЕНЕРАТОР -->
+<section>
+<h2>3.2 Генератор (ConcreteGenerator)</h2>
+<div class="row">
+<div>
+<div class="sb" style="font-size:.45em">
+Input(10)
+ → FC(256) + ResBlock(256)
+ → FC(128) + ResBlock(128)
+ → FC(64)  + ResBlock(64)
+ → Linear(64 → 2) → (μ, σ)
+
+219 714 параметров
+BatchNorm · LeakyReLU · Dropout(0.1)</div>
+</div>
+<div>
+<div class="c">
+<h3>Residual connections</h3>
+<p style="font-size:.55em">$\text{output} = F(x) + x$ — каждый слой учит инкрементальное уточнение</p>
+</div>
+<div class="c c2">
+<h3>Loss: Gaussian NLL</h3>
+<p style="font-size:.65em">$$\mathcal{L} = \frac{1}{2}\left[\log(\sigma^2) + \frac{(y - \mu)^2}{\sigma^2}\right]$$</p>
+<p style="font-size:.5em">Штрафует и за ошибку $\mu$, и за некалиброванную $\sigma$</p>
+</div>
+<div class="c c3">
+<h3>Два выхода</h3>
+<p style="font-size:.55em">$\mu$ — прочность, $\sigma$ — aleatoric uncertainty</p>
+</div>
+</div>
+</div>
+<aside class="notes">Модель предсказывает не только значение прочности μ, но и aleatoric uncertainty σ. Это позволяет модели сказать: «я предсказываю 35 ± 8 МПа для этого нестандартного состава». NLL vs MSE: MSE оптимизирует только μ, NLL находит баланс — если σ слишком мала при большой ошибке, штраф огромен; если σ слишком велика, штраф log(σ²) растёт.</aside>
+</section>
+
+<!-- 6. ДИСКРИМИНАТОР -->
+<section>
+<h2>3.3 Дискриминатор (NEAT + BNN)</h2>
+<div class="row">
+<div class="c">
+<h3>NEAT — эволюция топологии</h3>
+<ul>
+<li>Популяция 80 геномов, ~8 поколений</li>
+<li>Мутации: связи, узлы, возмущение весов</li>
+<li>Видообразование защищает инновационные топологии</li>
+<li>Результат — оптимизированная архитектура дискриминатора</li>
+</ul>
+</div>
+<div class="c c2">
+<h3>BNN — байесовские веса (Pyro SVI)</h3>
+<ul>
+<li>Каждый вес w заменяется на q(w) ≈ N(μ_w, σ_w)</li>
+<li>Prior N(0,1) — implicit L2-регуляризация</li>
+<li>3 SVI-шага на каждый шаг дискриминатора</li>
+<li>Epistemic uncertainty дискриминатора</li>
+</ul>
+</div>
+</div>
+<p style="font-size:.55em;margin-top:8px;text-align:center">Обычные GAN нестабильны: дискриминатор быстро становится слишком хорошим. BNN-дискриминатор «мягче» — его неуверенность в оценках стабилизирует adversarial training.</p>
+<aside class="notes">NEAT эволюционирует и топологию (какие нейроны с какими связаны), и веса одновременно. Это даёт топологию, оптимизированную под задачу, вместо ручного подбора. BNN предотвращает ситуацию, когда дискриминатор с 100% уверенностью отличает real от fake — генератор тогда не получает полезных градиентов. Label smoothing (real=0.9) дополнительно стабилизирует.</aside>
+</section>
+
+<!-- 7. НЕОПРЕДЕЛЁННОСТЬ -->
+<section>
+<h2>3.4 Оценка неопределённости</h2>
+<table>
+<tr><th></th><th>Aleatoric</th><th>Epistemic</th></tr>
+<tr><td>Источник</td><td>Шум данных</td><td>Незнание модели</td></tr>
+<tr><td>Как получаем</td><td>Выход σ генератора</td><td>MC-Dropout (N forward passes)</td></tr>
+<tr><td>Устранимость</td><td>Неустранимая</td><td>Уменьшается с данными</td></tr>
+</table>
+<p style="font-size:.75em;text-align:center;margin-top:12px">$$\sigma_{\text{total}} = \sqrt{\sigma_{\text{aleatoric}}^2 + \sigma_{\text{epistemic}}^2}$$</p>
+<div class="row" style="max-width:500px;margin:10px auto">
+<div class="mb"><div class="v" style="color:var(--a2)">0.87</div><div class="l">σ-error корреляция</div></div>
+<div class="mb"><div class="v" style="color:var(--a)">97%</div><div class="l">PICP (95% CI)</div></div>
+</div>
+<aside class="notes">MC-Dropout (Gal, Ghahramani, 2016): dropout остаётся включённым при инференсе, N=20-50 forward passes. Разброс предсказаний аппроксимирует байесовский posterior. Корреляция σ-error 0.87 означает: когда модель предсказывает высокую σ, она действительно ошибается больше. PICP 97% при 95% CI — модель слегка консервативна, что предпочтительно для инженерных задач.</aside>
+</section>
+
+<!-- 8. ОБУЧЕНИЕ: 3 ФАЗЫ -->
+<section>
+<h2>3.5 Обучение: трёхфазная стратегия</h2>
+<table>
+<tr><th>Фаза</th><th>Эпохи</th><th>Loss генератора</th></tr>
+<tr><td>1. Warmup</td><td>0–100</td><td>MSE + NLL</td></tr>
+<tr><td>2. Transition</td><td>100–200</td><td>MSE + α<sub>t</sub> × Adversarial (α: 0→0.7)</td></tr>
+<tr><td>3. Full GAN</td><td>200–500</td><td>0.3 × MSE + 0.7 × Adversarial</td></tr>
+</table>
+<div class="c" style="margin-top:10px">
+<h3>Physics-informed regularization</h3>
+<ul>
+<li>Монотонность: прочность растёт с возрастом (∂f/∂t ≥ 0)</li>
+<li>Закон Абрамса: прочность падает с ростом w/c ratio</li>
+<li>ГОСТ ограничения: предсказания в разумных пределах</li>
+</ul>
+</div>
+<aside class="notes">Если генератор ещё ничего не знает, дискриминатор тривиально отличает истинные составы от ложных и генератор получает бесполезные градиенты. Warmup даёт генератору базовое качество, с которого adversarial training может улучшить его дальше. Physics loss — дополнительный регуляризатор, штрафующий за нефизичные предсказания.</aside>
+</section>
+
+<!-- 9. ПАЙПЛАЙН -->
+<section>
+<h2>4. Пайплайн обучения</h2>
+<table>
+<tr><th>Этап</th><th>Описание</th><th>MAE (all)</th><th>MAE (t=28)</th></tr>
+<tr><td>4.1 Supervised Grid</td><td>57 конфигураций, early stopping по NLL</td><td>9.60</td><td>—</td></tr>
+<tr><td>4.2 GAN Fine-Tune</td><td>Top-3 × 3 lr = 9 моделей, 500 эпох</td><td>9.08</td><td>5.57</td></tr>
+<tr><td>4.3 Stacking (GBR)</td><td>24 модели, 5-Fold CV, мета-модель GBR</td><td>5.03</td><td>4.76</td></tr>
+</table>
+<div class="row" style="margin-top:8px">
+<div class="c">
+<h3>4.1 Supervised Grid</h3>
+<p style="font-size:.5em">Цель: найти лучшую конфигурацию генератора до подключения GAN. Валидация: early stopping по val_loss (NLL) с patience=50.</p>
+</div>
+<div class="c c2">
+<h3>4.2 GAN Tune</h3>
+<p style="font-size:.5em">Top-3 модели × 3 lr генератора (5e-5, 1e-4, 2e-4). NEAT + BNN дискриминатор, progressive schedule.</p>
+</div>
+<div class="c c3">
+<h3>4.3 Ансамбль</h3>
+<p style="font-size:.5em">Разные модели ошибаются в разных местах. Stacking: предсказания как входы для мета-модели. OOF MAE ≈ Test MAE.</p>
+</div>
+</div>
+<aside class="notes">Supervised сначала: GAN добавляет гиперпараметры (lr D, balance G/D, physics weights). Если генератор плохо настроен — GAN не поможет. Стекинг: GBR (n_estimators=50, max_depth=2). K-Fold CV: каждый сэмпл предсказан моделью, которая его не видела. OOF MAE=4.44, Test MAE=5.03, gap 0.59 — приемлемый.</aside>
+</section>
+
+<!-- 10. ABLATION -->
+<section>
+<h2>5. Ablation Study</h2>
+<div class="row">
+<div>
+<div class="c">
+<h3>5.1 GAN vs Supervised</h3>
+<table>
+<tr><th></th><th>MAE</th><th>±std</th></tr>
+<tr><td>Supervised</td><td>9.92</td><td>0.17</td></tr>
+<tr><td>GAN (full)</td><td>9.20</td><td>0.11</td></tr>
+</table>
+<p style="font-size:.5em;margin-top:3px">GAN улучшает на 0.71 МПа (7.2%), 3 seeds</p>
+</div>
+<div class="c c3" style="margin-top:6px">
+<h3>5.3 Dropout trade-off</h3>
+<p style="font-size:.5em">Без: MAE=9.505, PICP=97.7%<br>С: MAE=9.720, PICP=97.5%<br>−0.2 МПа за калиброванную epistemic σ</p>
+</div>
+</div>
+<div>
+<div class="c c2">
+<h3>5.2 MC-Dropout сходимость</h3>
+<table>
+<tr><th>N</th><th>PICP</th><th>MPIW</th></tr>
+<tr><td>1</td><td>95.7%</td><td>38.8</td></tr>
+<tr><td>20</td><td>97.1%</td><td>40.0</td></tr>
+<tr><td>50</td><td>97.5%</td><td>40.1</td></tr>
+</table>
+<p style="font-size:.5em;margin-top:3px">σ-error корреляция: 0.867<br>Модель калиброванно оценивает свою ошибку</p>
+</div>
+</div>
+</div>
+<aside class="notes">Каждый компонент архитектуры обоснован экспериментально. GAN vs Supervised: 3 random seeds (42, 43, 44). MC-Dropout стабилизируется при N≥20. Dropout осознанный trade-off: без него невозможен MC-Dropout inference, который даёт калиброванную epistemic uncertainty. Модель слегка консервативна на высоких CI — для инженерных задач это безопаснее, чем overconfident.</aside>
+</section>
+
+<!-- 11. ДОПТАСКИ -->
+<section>
+<h2>6. Дополнительные задачи</h2>
+<div class="row">
+<div>
+<div class="c">
+<h3>6.1 Перенос на узкую выборку (n=206)</h3>
+<table>
+<tr><th>Метод</th><th>MAE</th></tr>
+<tr><td>No adaptation</td><td>6.32</td></tr>
+<tr><td>Fine-tune</td><td>6.86</td></tr>
+<tr><td>EWC</td><td>7.17</td></tr>
+</table>
+<p style="font-size:.45em;margin-top:3px">Pre-trained модель уже обобщает лучше, чем fine-tune на 144 сэмплах</p>
+</div>
+</div>
+<div>
+<div class="c c2">
+<h3>6.2 Устойчивость (few-shot)</h3>
+<table>
+<tr><th>n</th><th>MAE</th><th>R²</th></tr>
+<tr><td>50</td><td>12.84</td><td>0.11</td></tr>
+<tr><td>200</td><td>11.36</td><td>0.31</td></tr>
+<tr><td>2000</td><td>10.29</td><td>0.47</td></tr>
+</table>
+</div>
+<div class="c c3" style="margin-top:6px">
+<h3>6.3 Прочность во времени</h3>
+<table>
+<tr><th>Возр.</th><th>MAE</th><th>n</th></tr>
+<tr><td>1 д.</td><td>23.5</td><td>44</td></tr>
+<tr><td>28 д.</td><td>5.7</td><td>329</td></tr>
+</table>
+<p style="font-size:.45em;margin-top:2px">Монотонность: 34%</p>
+</div>
+</div>
+</div>
+<aside class="notes">Transfer: модель обучена на 3745 составах, тестируем на узкой лабораторной выборке (206 обр., цемент 250-400 кг/м³). EWC (Elastic Weight Consolidation) не помогает — pre-trained модель обобщает лучше fine-tuning. Few-shot: обучаем на подвыборках по 3 random seed на каждый n. Time prediction: MAE коррелирует с количеством данных для каждого возраста. Монотонность 34% — physics loss помогает, но недостаточен.</aside>
+</section>
+
+<!-- 12. ЗАКЛЮЧЕНИЕ -->
+<section>
+<h2>8. Заключение</h2>
+<table>
+<tr><th>Метрика</th><th>Single GAN</th><th>Stacking (24 модели)</th></tr>
+<tr><td>MAE (t=28)</td><td>5.57 МПа</td><td><strong>4.76 МПа</strong></td></tr>
+<tr><td>R² (t=28)</td><td>0.74</td><td><strong>0.82</strong></td></tr>
+<tr><td>PICP (95%)</td><td>97%</td><td>98%</td></tr>
+<tr><td>σ-error корреляция</td><td>0.87</td><td>—</td></tr>
+</table>
+<div class="row" style="margin-top:8px">
+<div class="c">
+<h3>Что сработало</h3>
+<ul>
+<li>GAN > Supervised (+7%)</li>
+<li>MC-Dropout: σ-error = 0.87</li>
+<li>Stacking снижает variance</li>
+<li>Pre-training обобщает (transfer MAE = 6.32)</li>
+</ul>
+</div>
+<div class="c c2">
+<h3>Что не сработало и почему</h3>
+<ul>
+<li>EWC/Replay: pre-trained обобщает лучше</li>
+<li>Монотонность 34%: physics loss недостаточен</li>
+<li>Multi-property: 873/3745 записей по slump</li>
+</ul>
+</div>
+</div>
+<aside class="notes">Воспроизводимость: seed=42, все чекпоинты в репо, K-Fold CV стекинг с OOF MAE ≈ Test MAE (gap 0.59). GAN заставляет генератор выдавать более реалистичные предсказания. MC-Dropout — модель надёжно оценивает свою неуверенность. Stacking: комбинация разнообразных моделей (разные lr, архитектуры, seeds).</aside>
+</section>
+
+<!-- 13. ФИНАЛ -->
+<section>
+<h2 style="color:#fff">Результаты</h2>
+<div class="mg">
+<div class="mb"><div class="v" style="color:var(--a)">4.76</div><div class="l">MAE, МПа (t=28)</div></div>
+<div class="mb"><div class="v" style="color:var(--a3)">0.82</div><div class="l">R²</div></div>
+<div class="mb"><div class="v" style="color:var(--a2)">97%</div><div class="l">PICP</div></div>
+<div class="mb"><div class="v" style="color:#B07090">0.87</div><div class="l">σ-error корреляция</div></div>
+</div>
+<p style="font-size:.55em;opacity:.4;margin-top:1em">github.com/Surmbruh/concrete-strength</p>
+<p style="font-size:.5em;opacity:.35;margin-top:.4em">Королева Мария · Долгих Данил</p>
+</section>
+
+</div></div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/plugin/notes/notes.esm.js" type="module"></script>
+<script type="module">
+import RevealNotes from 'https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/plugin/notes/notes.esm.js';
+Reveal.initialize({
+  hash:true,
+  slideNumber:'c/t',
+  transition:'slide',
+  width:960,
+  height:700,
+  margin:0.08,
+  plugins:[RevealNotes]
+});
+renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});
+</script>
+</body>
+</html>

@@ -102,7 +102,7 @@ def main():
     # Load data
     log("Loading data...")
     ds = load_and_unify_datasets("data")
-    split = stratified_split(ds, seed=SEED)
+    split = grouped_stratified_split(ds, seed=SEED)
     x_all = ds.all_features
     y_all = ds.target.to_numpy()
 

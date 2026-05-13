@@ -65,7 +65,7 @@ def main():
     )
     # Full data (for combined test evaluation)
     ds_full = load_and_unify_datasets("data")
-    split_full = stratified_split(ds_full, seed=SEED)
+    split_full = grouped_stratified_split(ds_full, seed=SEED)
 
     log(f"Pre-train: {ds_pretrain.n_samples}, Fine-tune: {ds_finetune.n_samples}")
     log(f"Full: {ds_full.n_samples}, test={len(split_full['test'])}")
@@ -87,7 +87,7 @@ def main():
     ages_test = ages_full[split_full["test"]]
 
     # Pre-train splits (using pre-train data with same scaler)
-    split_pt = stratified_split(ds_pretrain, seed=SEED)
+    split_pt = grouped_stratified_split(ds_pretrain, seed=SEED)
     x_pt_all = feat_scaler.transform(ds_pretrain.all_features)
     y_pt_all = tgt_scaler.transform(ds_pretrain.target.to_numpy().reshape(-1, 1)).ravel()
 
@@ -97,7 +97,7 @@ def main():
     y_pt_val = y_pt_all[split_pt["val"]]
 
     # Fine-tune splits
-    split_ft = stratified_split(ds_finetune, seed=SEED)
+    split_ft = grouped_stratified_split(ds_finetune, seed=SEED)
     x_ft_all = feat_scaler.transform(ds_finetune.all_features)
     y_ft_all = tgt_scaler.transform(ds_finetune.target.to_numpy().reshape(-1, 1)).ravel()
 

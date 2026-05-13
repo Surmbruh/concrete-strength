@@ -29,7 +29,7 @@ def main():
     print("=" * 60)
 
     ds = load_and_unify_datasets("data")
-    split = stratified_split(ds, seed=42)
+    split = grouped_stratified_split(ds, seed=42)
     print(f"Samples: {ds.n_samples}  |  Train: {len(split['train'])}  Val: {len(split['val'])}  Test: {len(split['test'])}")
 
     x_all = ds.all_features

@@ -141,7 +141,7 @@ class TransferLearner:
         art_dir.mkdir(parents=True, exist_ok=True)
 
         dataset = self.pretrain_dataset
-        split = stratified_split(dataset, seed=self.config.seed)
+        split = grouped_stratified_split(dataset, seed=self.config.seed)
 
         x_all = dataset.all_features
         y_all = dataset.target.to_numpy()
@@ -199,7 +199,7 @@ class TransferLearner:
         art_dir = Path(artifacts_dir)
 
         dataset = self.finetune_dataset
-        split = stratified_split(dataset, seed=self.config.seed)
+        split = grouped_stratified_split(dataset, seed=self.config.seed)
 
         x_all = dataset.all_features
         y_all = dataset.target.to_numpy()
@@ -257,7 +257,7 @@ class TransferLearner:
 
         if x_test is None:
             dataset = self.finetune_dataset
-            split = stratified_split(dataset, seed=self.config.seed)
+            split = grouped_stratified_split(dataset, seed=self.config.seed)
             x_test = dataset.all_features[split["test"]]
             y_test = dataset.target.to_numpy()[split["test"]]
             age_test = dataset.age_days.to_numpy()[split["test"]]

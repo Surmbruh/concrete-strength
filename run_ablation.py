@@ -37,7 +37,7 @@ def log(msg):
 
 def load_data(data_dir="data", seed=42):
     ds = load_and_unify_datasets(data_dir)
-    split = stratified_split(ds, seed=seed)
+    split = grouped_stratified_split(ds, seed=seed)
     x_all = ds.all_features
     y_all = ds.target.to_numpy()
     ages_all = ds.age_days.to_numpy()

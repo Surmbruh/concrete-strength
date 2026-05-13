@@ -69,7 +69,7 @@ def build_features(df):
 def load_scalers(data_dir="data", seed=42):
     """Загружает скейлеры, обученные на training data."""
     ds = load_and_unify_datasets(data_dir)
-    split = stratified_split(ds, seed=seed)
+    split = grouped_stratified_split(ds, seed=seed)
     x_train = ds.all_features[split["train"]]
     y_train = ds.target.to_numpy()[split["train"]]
     feat_scaler = StandardScaler.fit(x_train)

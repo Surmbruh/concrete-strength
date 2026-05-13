@@ -255,8 +255,8 @@ def main():
         slump_values = None
     
     # ── 2. Prepare features ──────────────────────────────────────────
-    from materialgen.data_preparation import stratified_split
-    split = stratified_split(ds, seed=42)
+    from materialgen.data_preparation import grouped_stratified_split
+    split = grouped_stratified_split(ds, seed=42)
     x_all = ds.all_features
     y_all = ds.target.to_numpy()
     

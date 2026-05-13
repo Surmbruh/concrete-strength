@@ -20,7 +20,7 @@ def main():
 
     # 1. Load & split data
     ds = load_and_unify_datasets("data")
-    split = stratified_split(ds, seed=42)
+    split = grouped_stratified_split(ds, seed=42)
     x_all, y_all = ds.all_features, ds.target.to_numpy()
     x_train, y_train = x_all[split["train"]], y_all[split["train"]]
     x_val, y_val = x_all[split["val"]], y_all[split["val"]]

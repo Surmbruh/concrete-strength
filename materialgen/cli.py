@@ -201,7 +201,7 @@ def _handle_complex_check(args) -> int:
     # Загружаем данные
     import numpy as np
     dataset = load_and_unify_datasets(args.data_dir, include_synthetic=True)
-    split = stratified_split(dataset)
+    split = grouped_stratified_split(dataset)
 
     x_test = dataset.all_features[split["test"]]
     y_test = dataset.target.to_numpy()[split["test"]]
