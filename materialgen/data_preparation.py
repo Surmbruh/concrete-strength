@@ -347,3 +347,72 @@ def stratified_split(
         "val": np.array(val_idx, dtype=int),
         "test": np.array(test_idx, dtype=int),
     }
+
+
+def grouped_stratified_split(
+    dataset: UnifiedDataset,
+    *,
+    val_ratio: float = 0.15,
+    test_ratio: float = 0.15,
+    seed: int = 42,
+    n_bins: int = 5,
+) -> dict[str, np.ndarray]:
+    """Стратифицированное разбиение по группам составов (без утечки данных).
+
+    Все строки с одинаковым составом (7 композиционных признаков)
+    гарантированно попадают в один и тот же split.  Это предотвращает
+    ситуацию, когда модель видит состав при t=3 в train и тестируется
+    на том же составе при t=28 — что является group leakage.
+
+    Стратификация — по медианной прочности группы (по квантилям).
+    """
+    rng = np.random.default_rng(seed)
+
+    features = dataset.features[dataset.composition_columns]
+    strengths = dataset.target.to_numpy()
+
+    # Создаём ключ группы из 7 композиционных столбцов (округление до 0.01)
+    comp_keys = features.apply(
+        lambda r: tuple(round(float(x), 2) for x in r), axis=1
+    )
+    # Назначаем group_id каждой уникальной композиции
+    unique_keys = list(comp_keys.unique())
+    key_to_gid = {k: i for i, k in enumerate(unique_keys)}
+    group_ids = comp_keys.map(key_to_gid).to_numpy()
+
+    n_groups = len(unique_keys)
+
+    # Медианная прочность каждой группы — для стратификации
+    group_median_strength = np.zeros(n_groups)
+    group_row_indices: dict[int, list[int]] = {g: [] for g in range(n_groups)}
+    for idx in range(len(strengths)):
+        gid = group_ids[idx]
+        group_row_indices[gid].append(idx)
+    for gid in range(n_groups):
+        group_median_strength[gid] = np.median(strengths[group_row_indices[gid]])
+
+    # Бинируем ГРУППЫ по квантилям медианной прочности
+    bins = np.quantile(group_median_strength, np.linspace(0, 1, n_bins + 1))
+    bins[-1] += 1e-6
+    group_bin = np.digitize(group_median_strength, bins) - 1
+
+    train_idx, val_idx, test_idx = [], [], []
+    for b in range(n_bins):
+        groups_in_bin = np.where(group_bin == b)[0]
+        rng.shuffle(groups_in_bin)
+        n_grp = len(groups_in_bin)
+        n_test = max(1, int(n_grp * test_ratio))
+        n_val = max(1, int(n_grp * val_ratio))
+
+        for gid in groups_in_bin[:n_test]:
+            test_idx.extend(group_row_indices[gid])
+        for gid in groups_in_bin[n_test:n_test + n_val]:
+            val_idx.extend(group_row_indices[gid])
+        for gid in groups_in_bin[n_test + n_val:]:
+            train_idx.extend(group_row_indices[gid])
+
+    return {
+        "train": np.array(train_idx, dtype=int),
+        "val": np.array(val_idx, dtype=int),
+        "test": np.array(test_idx, dtype=int),
+    }
