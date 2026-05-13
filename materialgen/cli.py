@@ -180,7 +180,7 @@ def _handle_complex_check(args) -> int:
     """Комплексная валидация модели."""
     from .generator import ConcreteGenerator, GeneratorConfig
     from .discriminator import NeatBNNDiscriminator
-    from .data_preparation import load_and_unify_datasets, stratified_split
+    from .data_preparation import load_and_unify_datasets, grouped_stratified_split
     from .metrics import evaluate_model
     from .physics import load_gost_table
 

@@ -20,7 +20,7 @@ from .gan_trainer import ConcreteGAN, GANConfig, GANTrainingHistory
 from .data_preparation import (
     UnifiedDataset,
     load_and_unify_datasets,
-    stratified_split,
+    grouped_stratified_split,
 )
 from .physics import GostTable, load_gost_table
 from .metrics import evaluate_model, FullEvaluation

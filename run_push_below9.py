@@ -17,7 +17,7 @@ from pathlib import Path
 from sklearn.linear_model import Ridge, Lasso
 from sklearn.ensemble import GradientBoostingRegressor
 
-from materialgen.data_preparation import load_and_unify_datasets, stratified_split
+from materialgen.data_preparation import load_and_unify_datasets, grouped_stratified_split
 from materialgen.scaler import StandardScaler
 from materialgen.generator import ConcreteGenerator, GeneratorConfig, train_generator_supervised
 from materialgen.metrics import evaluate_model

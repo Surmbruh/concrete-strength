@@ -33,7 +33,7 @@ import pandas as pd
 import torch
 
 from materialgen.data_preparation import (
-    load_and_unify_datasets, stratified_split,
+    load_and_unify_datasets, grouped_stratified_split,
     COMPOSITION_COLUMNS, DERIVED_COLUMNS,
 )
 from materialgen.scaler import StandardScaler

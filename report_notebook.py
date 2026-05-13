@@ -115,7 +115,7 @@ print(f"PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}")
 # что каждый split содержит представительное распределение целевой переменной.
 
 # %%
-from materialgen.data_preparation import load_and_unify_datasets, stratified_split
+from materialgen.data_preparation import load_and_unify_datasets, grouped_stratified_split
 from materialgen.scaler import StandardScaler
 
 ds = load_and_unify_datasets("data")
