@@ -101,9 +101,18 @@ print("✅ Clean slate — ready to train")
 !python run_ensemble.py \
     --output_dir /content/drive/MyDrive/concrete_project/experiments
 
+# ==============================================================
+# CELL 6: Stacking Ensemble (~2 min, no retraining needed)
+# ==============================================================
+
+# %%
+!pip install -q scikit-learn
+!python run_stacking.py \
+    --output_dir /content/drive/MyDrive/concrete_project/experiments
+
 
 # ==============================================================
-# CELL 6: Bonus Tasks (~15 min)
+# CELL 7: Bonus Tasks (~15 min)
 # ==============================================================
 
 # %%
