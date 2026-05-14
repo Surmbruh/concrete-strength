@@ -1,7 +1,8 @@
 """Генератор: нейросеть прямого прогноза (состав + время → прочность).
 
 Реализует архитектуру FC + Residual + Heteroscedastic output:
-- Вход: состав смеси (7 компонентов) + производные (w/c, w/b, log_age) = 10 dim
+- Вход: состав смеси (7 компонентов) + производные (w/c, w/b, log_age, 
+        cement×log_age, wc×log_age, binder/agg) = 13 dim
 - Выход: (μ, σ) — среднее предсказание прочности и aleatoric uncertainty
 - Ограничения: SoftPlus на выходе (strength ≥ 0)
 """
@@ -24,7 +25,7 @@ import torch.nn.functional as F
 class GeneratorConfig:
     """Гиперпараметры архитектуры и обучения генератора."""
 
-    input_dim: int = 10           # 7 компонентов + w_c_ratio + w_b_ratio + log_age
+    input_dim: int = 13           # 7 компонентов + 6 производных
     hidden_dims: list[int] | None = None  # по умолчанию [128, 64, 32]
     dropout: float = 0.3
     use_batch_norm: bool = True
@@ -192,7 +193,7 @@ class ConcreteGenerator(nn.Module):
         Parameters
         ----------
         x : тензор входных признаков [batch, input_dim]
-            Содержит: composition (7) + w_c_ratio + w_b_ratio + log_age
+            Содержит: composition (7) + derived features (6)
 
         Returns
         -------

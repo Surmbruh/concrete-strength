@@ -32,9 +32,12 @@ COMPOSITION_COLUMNS = [
     "plasticizer",
 ]
 DERIVED_COLUMNS = [
-    "w_c_ratio",     # water / cement (закон Абрамса)
-    "w_b_ratio",     # water / (cement + fine_add_1 + fine_add_2)
-    "log_age",       # log(age_days)
+    "w_c_ratio",         # water / cement (закон Абрамса)
+    "w_b_ratio",         # water / (cement + fine_add_1 + fine_add_2)
+    "log_age",           # log(age_days)
+    "cement_x_logage",   # cement * log(age) — взаимодействие
+    "wc_x_logage",       # w_c_ratio * log(age) — Абрамс во времени
+    "binder_agg_ratio",  # (cement + fine_add_1) / (sand + coarse_agg)
 ]
 TARGET_COLUMN = "strength_mpa"
 AGE_COLUMN = "age_days"
@@ -228,7 +231,8 @@ def _unify_synthetic(csv_path: str | Path) -> pd.DataFrame:
 def add_derived_features(df: pd.DataFrame) -> pd.DataFrame:
     """Добавить производные признаки к единому DataFrame.
 
-    Создаёт: w_c_ratio, w_b_ratio, log_age.
+    Создаёт: w_c_ratio, w_b_ratio, log_age, cement_x_logage,
+    wc_x_logage, binder_agg_ratio.
     """
     df = df.copy()
 
@@ -244,6 +248,16 @@ def add_derived_features(df: pd.DataFrame) -> pd.DataFrame:
     # Логарифм возраста
     age_safe = df["age_days"].clip(lower=0.5)
     df["log_age"] = np.log(age_safe)
+
+    # Взаимодействие цемента и времени (набор прочности)
+    df["cement_x_logage"] = df["cement"] * df["log_age"]
+
+    # Абрамс во времени: w/c ratio × log(age)
+    df["wc_x_logage"] = df["w_c_ratio"] * df["log_age"]
+
+    # Отношение вяжущее / заполнитель
+    aggregate = (df["sand"] + df["coarse_agg"]).clip(lower=1.0)
+    df["binder_agg_ratio"] = (df["cement"] + df["fine_add_1"]) / aggregate
 
     return df
 

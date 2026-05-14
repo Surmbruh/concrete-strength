@@ -37,7 +37,7 @@ class GANConfig:
     """Гиперпараметры GAN-обучения."""
 
     # Общие
-    total_epochs: int = 500
+    total_epochs: int = 1000
     seed: int = 42
 
     # Loss weights (progressive schedule)
@@ -70,7 +70,7 @@ class GANConfig:
 
     # Validation
     val_interval: int = 10           # каждые N эпох
-    early_stopping_patience: int = 50
+    early_stopping_patience: int = 80
     batch_size: int = 32
 
     # Индекс w/c ratio в входном тензоре генератора
@@ -261,10 +261,13 @@ class ConcreteGAN:
             y_train.reshape(-1, 1), dtype=torch.float32, device=device,
         )
 
-        gen_optimizer = torch.optim.Adam(
+        gen_optimizer = torch.optim.AdamW(
             self.generator.parameters(),
             lr=cfg.generator_lr,
             weight_decay=cfg.generator_weight_decay,
+        )
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            gen_optimizer, T_max=cfg.total_epochs, eta_min=1e-6,
         )
 
         patience_counter = 0
@@ -312,6 +315,7 @@ class ConcreteGAN:
             self.history.supervised_losses.append(epoch_sup_loss / n)
             self.history.adversarial_losses.append(epoch_adv_loss / n)
             self.history.physics_losses.append(epoch_phy_loss / n)
+            scheduler.step()
 
             # === Validation ===
             if x_val is not None and epoch % cfg.val_interval == 0:

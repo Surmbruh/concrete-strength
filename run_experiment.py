@@ -258,7 +258,7 @@ def run_gan_tune(data, tracker, checkpoint_dir, top_k=3):
             config = {
                 **{k: sup[k] for k in ["lr", "hidden", "dropout", "batch_size"]
                    if k in sup},
-                "gan_lr": gan_lr, "gan_epochs": 500,
+                "gan_lr": gan_lr, "gan_epochs": 1000,
                 "neat_pop": 50, "neat_gen": 5,
             }
 
@@ -278,12 +278,12 @@ def run_gan_tune(data, tracker, checkpoint_dir, top_k=3):
                 disc_fresh.load(disc_ckpt)
 
                 gan = ConcreteGAN(gen, disc_fresh, config=GANConfig(
-                    total_epochs=500, phase1_end=100, phase2_end=250,
+                    total_epochs=1000, phase1_end=100, phase2_end=250,
                     generator_lr=gan_lr, generator_weight_decay=1e-4,
                     batch_size=bs, val_interval=5,
                     early_stopping_patience=80, lambda_physics=0.0, seed=42,
                 ))
-                log(f"    [{tag}] GAN training (500ep, lr={gan_lr})...")
+                log(f"    [{tag}] GAN training (1000ep, lr={gan_lr})...")
                 history = gan.train(
                     data["train"]["x"], data["train"]["y"],
                     data["val"]["x"], data["val"]["y"],
