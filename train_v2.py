@@ -38,7 +38,7 @@ drive.mount('/content/drive')
 !cd /content && git clone https://github.com/AICraft-Labs/concrete-strength.git
 
 %cd /content/concrete-strength
-!pip install -q neat-python
+!pip install -q neat-python pyro-ppl
 
 # --- Verify new features ---
 import importlib, materialgen.data_preparation as dp
