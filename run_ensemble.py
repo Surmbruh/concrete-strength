@@ -128,11 +128,19 @@ def run_ensemble(data, tracker, checkpoint_dir):
         return None
     
     # Load all GAN models and evaluate individually
+    import re
     models_with_score = []
     for ckpt in gan_ckpts:
+        # Parse hidden_dims from filename: "..._h256x128x64_..." → [256,128,64]
+        h_match = re.search(r'_h([\dx]+)_', ckpt.name)
+        if h_match:
+            hidden_dims = [int(x) for x in h_match.group(1).split('x')]
+        else:
+            hidden_dims = [256, 128, 64]  # fallback
+
         gen = ConcreteGenerator(GeneratorConfig(
             input_dim=data["input_dim"],
-            hidden_dims=[256, 128, 64],  # try both architectures
+            hidden_dims=hidden_dims,
             dropout=0.1, seed=42,
         ))
         try:
@@ -140,22 +148,9 @@ def run_ensemble(data, tracker, checkpoint_dir):
                 torch.load(ckpt, map_location="cpu", weights_only=True))
             m = eval_model(gen, data, mc_samples=20)
             models_with_score.append((gen, m["mae"], ckpt.name, m))
-            log(f"  {ckpt.name}: MAE={m['mae']:.2f}")
+            log(f"  {ckpt.name} ({hidden_dims}): MAE={m['mae']:.2f}")
         except Exception as e:
-            # Try 4-layer architecture
-            try:
-                gen = ConcreteGenerator(GeneratorConfig(
-                    input_dim=data["input_dim"],
-                    hidden_dims=[256, 128, 64, 32],
-                    dropout=0.1, seed=42,
-                ))
-                gen.load_state_dict(
-                    torch.load(ckpt, map_location="cpu", weights_only=True))
-                m = eval_model(gen, data, mc_samples=20)
-                models_with_score.append((gen, m["mae"], ckpt.name, m))
-                log(f"  {ckpt.name} (4-layer): MAE={m['mae']:.2f}")
-            except Exception:
-                log(f"  {ckpt.name}: SKIP ({e})")
+            log(f"  {ckpt.name}: SKIP ({e})")
     
     models_with_score.sort(key=lambda x: x[1])
     
