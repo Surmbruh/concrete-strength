@@ -132,8 +132,14 @@ def load_gost_table(csv_path: str | Path) -> GostTable:
 
 def monotonicity_loss(
     generator: torch.nn.Module,
-    x_composition: torch.Tensor,
+    x_full: torch.Tensor,
     times: list[float] | None = None,
+    *,
+    log_age_idx: int = 9,
+    cement_x_logage_idx: int | None = 10,
+    wc_x_logage_idx: int | None = 11,
+    cement_idx: int = 0,
+    wc_idx: int = 7,
 ) -> torch.Tensor:
     """Штраф за нарушение монотонности прочности по времени.
 
@@ -143,8 +149,11 @@ def monotonicity_loss(
     Parameters
     ----------
     generator : модель-генератор с интерфейсом forward(x) → (mu, sigma)
-    x_composition : тензор составов [batch, n_components] БЕЗ log_age
+    x_full : полный входной тензор [batch, input_dim] (с log_age и interactions)
     times : список моментов времени (дней); по умолчанию [1, 3, 7, 28]
+    log_age_idx : индекс столбца log_age
+    cement_x_logage_idx : индекс столбца cement*log_age (None если нет)
+    wc_x_logage_idx : индекс столбца wc*log_age (None если нет)
 
     Returns
     -------
@@ -155,17 +164,18 @@ def monotonicity_loss(
 
     predictions: list[torch.Tensor] = []
     for t in times:
-        log_t = torch.full(
-            (x_composition.shape[0], 1),
-            float(np.log(t)),
-            dtype=x_composition.dtype,
-            device=x_composition.device,
-        )
-        x_with_time = torch.cat([x_composition, log_t], dim=1)
-        mu, _sigma = generator(x_with_time)
+        x_t = x_full.clone()
+        log_t = float(np.log(t))
+        x_t[:, log_age_idx] = log_t
+        # Recalculate interaction features that depend on log_age
+        if cement_x_logage_idx is not None:
+            x_t[:, cement_x_logage_idx] = x_t[:, cement_idx] * log_t
+        if wc_x_logage_idx is not None:
+            x_t[:, wc_x_logage_idx] = x_t[:, wc_idx] * log_t
+        mu, _sigma = generator(x_t)
         predictions.append(mu)
 
-    penalty = torch.tensor(0.0, device=x_composition.device)
+    penalty = torch.tensor(0.0, device=x_full.device)
     for i in range(len(predictions) - 1):
         # Штраф если прочность убывает: relu(prev - next)
         violation = F.relu(predictions[i] - predictions[i + 1])
@@ -259,7 +269,7 @@ def combined_physics_loss(
     """
     details: dict[str, float] = {}
 
-    mono = monotonicity_loss(generator, x_composition)
+    mono = monotonicity_loss(generator, x_with_time)
     details["monotonicity"] = float(mono.item())
 
     abrams = abrams_loss(generator, x_with_time, wc_index)
