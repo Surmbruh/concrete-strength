@@ -25,7 +25,7 @@ Original file is located at
 > с grouped stratified split и улучшенным feature engineering.
 
 **Финальные результаты (исправленный пайплайн, grouped split):**
-- Лучшая одиночная GAN-модель: MAE = 8.49 МПа, R² = 0.53
+- Лучшая одиночная GAN-модель: MAE = 8.54 МПа, R² = 0.54
 - Ridge Stacking (16 моделей): **MAE = 7.23 МПа, R² = 0.70**
 - Оценка неопределённости: PICP = 92–98%
 
@@ -790,11 +790,11 @@ print(f"\nЛучший supervised: MAE = {sup_v2_data[0][1]:.2f}")
 # ── 7.6 Результаты GAN Tune (hardcoded) ──
 print("\n── GAN Fine-Tune (1000 эпох, cosine annealing, AdamW) ──")
 gan_v2_data = [
-    ("gan_sup_lr0.0005_h256x128x64_d0.1_glr0.0002",  8.49, 0.5294, 955),
-    ("gan_sup_lr0.001_h256x128x64_d0.1_glr0.0001",    8.73, 0.5135, 985),
-    ("gan_sup_lr0.0005_h128x64x32_d0.1_glr0.0002",    8.75, 0.5200, 955),
-    ("gan_sup_lr0.0005_h256x128x64_d0.1_glr0.0001",   8.75, 0.5121, 790),
-    ("gan_sup_lr0.0005_h256x128x64_d0.1_glr5e-05",    8.85, 0.5044, 515),
+    ("gan_sup_lr0.001_h256x128x64x32_d0.1_glr0.0002",   8.54, 0.5362, 855),
+    ("gan_sup_lr0.001_h256x128x64x32_d0.1_glr0.0001",   8.61, 0.5247, 985),
+    ("gan_sup_lr0.0005_h256x128x64x32_d0.1_glr0.0002",  8.67, 0.5171, 955),
+    ("gan_sup_lr0.001_h128x64x32_d0.1_glr0.0002",       8.68, 0.5135, 790),
+    ("gan_sup_lr0.001_h128x64x32_d0.1_glr0.0001",       8.83, 0.5044, 515),
 ]
 print(f"  {'tag':<52} {'MAE':>6} {'R²':>8} {'best_ep':>8}")
 print("  " + "-" * 76)
@@ -821,7 +821,7 @@ for name, mae, r2, picp in stack_v2_data:
 # ── 7.8 Визуализация: сравнение пайплайнов ──
 stages_v2 = ['Supervised\n(grid)', 'Best GAN\n(individual)', 'Ensemble\n(avg top-3)',
              'Ridge\nStacking']
-mae_v2 = [9.32, 8.49, 8.62, 7.23]
+mae_v2 = [9.32, 8.54, 9.02, 7.23]
 
 fig, ax = plt.subplots(figsize=(10, 5))
 x_pos = np.arange(len(stages_v2))
@@ -916,7 +916,7 @@ print(f"Прочность: {mu[0]:.1f} ± {ci95[0]:.1f} МПа")
 
 | Параметр | Значение | Описание |
 |----------|---------|----------|
-| `--method single` | Лучшая модель | Быстрее, MAE ≈ 8.49 |
+| `--method single` | Лучшая модель | Быстрее, MAE ≈ 8.54 |
 | `--method ensemble` | Все 16 моделей | Точнее, MAE ≈ 7.23 |
 | `--mc_samples 30` | MC-Dropout сэмплы | Больше = точнее σ, медленнее |
 """
@@ -990,15 +990,15 @@ else:
 
 | Метрика | Best GAN (individual) | Ridge Stacking (16 моделей) |
 |---------|:---------------------:|:---------------------------:|
-| MAE | 8.49 МПа | **7.23 МПа** |
-| R² | 0.53 | **0.70** |
+| MAE | 8.54 МПа | **7.23 МПа** |
+| R² | 0.54 | **0.70** |
 | PICP (95%) | 94.6% | 92.2% |
 
 ### Что сработало
 
-1. **GAN > Supervised** (−0.83 МПа): adversarial training с NEAT+BNN
+1. **GAN > Supervised** (−0.78 МПа): adversarial training с NEAT+BNN
    дискриминатором заставляет генератор выдавать более реалистичные
-   предсказания (MAE: 9.32 → 8.49)
+   предсказания (MAE: 9.32 → 8.54)
 2. **Ridge Stacking** (−1.26 МПа): комбинация разнообразных моделей
    (разные lr, архитектуры, physics-informed) через мета-обучение
 3. **Physics-informed модели в стекинге**: модели с physics loss
@@ -1040,7 +1040,7 @@ print("=" * 60)
 print(f"\n{'Задача':<40} {'Результат':>15}")
 print("-" * 55)
 print(f"{'Supervised baseline (grouped split)':<40} {'MAE = 9.32':>15}")
-print(f"{'Best GAN (individual)':<40} {'MAE = 8.49':>15}")
+print(f"{'Best GAN (individual)':<40} {'MAE = 8.54':>15}")
 print(f"{'Ridge Stacking (16 моделей)':<40} {'MAE = 7.23':>15}")
 print(f"{'Улучшение GAN vs Supervised':<40} {'-9.0%':>15}")
 print(f"{'Transfer (no adaptation)':<40} {'MAE = 5.18':>15}")
