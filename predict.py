@@ -44,11 +44,13 @@ def build_features(df):
     """Строит полный вектор признаков из пользовательского CSV.
 
     Принимает DataFrame с composition колонками + age_days.
-    Возвращает numpy array [n_samples, 10] с теми же признаками,
+    Возвращает numpy array [n_samples, 13] с теми же признаками,
     что использовались при обучении.
     """
     cement = df["cement"].values.astype(float)
     water = df["water"].values.astype(float)
+    sand = df["sand"].values.astype(float)
+    coarse_agg = df["coarse_agg"].values.astype(float)
     fine1 = df["fine_add_1"].values.astype(float)
     fine2 = df["fine_add_2"].values.astype(float)
     age = df["age_days"].values.astype(float)
@@ -60,8 +62,19 @@ def build_features(df):
         0.0)
     log_age = np.log1p(age)
 
+    # Interaction features (v2)
+    cement_x_logage = cement * log_age
+    wc_x_logage = wc_ratio * log_age
+    binder_agg = np.where(
+        (sand + coarse_agg) > 0,
+        (cement + fine1) / (sand + coarse_agg),
+        0.0)
+
     composition = df[list(COMPOSITION_COLUMNS)].values.astype(float)
-    derived = np.column_stack([wc_ratio, wb_ratio, log_age])
+    derived = np.column_stack([
+        wc_ratio, wb_ratio, log_age,
+        cement_x_logage, wc_x_logage, binder_agg,
+    ])
 
     return np.hstack([composition, derived])
 
@@ -79,7 +92,7 @@ def load_scalers(data_dir="data", seed=42):
 
 def load_model(checkpoint_path, input_dim):
     """Пробует загрузить модель с разными архитектурами."""
-    for hidden in [[256, 128, 64], [256, 128, 64, 32]]:
+    for hidden in [[256, 128, 64], [256, 128, 64, 32], [128, 64, 32]]:
         try:
             gen = ConcreteGenerator(GeneratorConfig(
                 input_dim=input_dim, hidden_dims=hidden,
